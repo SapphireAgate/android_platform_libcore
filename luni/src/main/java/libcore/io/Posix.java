@@ -227,8 +227,25 @@ public final class Posix implements Os {
     }
     public int recvfrom(FileDescriptor fd, byte[] bytes, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
         // This indirection isn't strictly necessary, but ensures that our public interface is type safe.
-        return recvfromBytes(fd, bytes, byteOffset, byteCount, flags, srcAddress);
-    }
+        
+        //begin WITH_SAPPHIRE_AGATE 
+        int r = recvfromBytes(fd, bytes, byteOffset, byteCount, flags, srcAddress);
+ 
+        int tag = 0;
+        for (int i = 0; i < 4; i++) {
+            tag = tag << 4; 
+            tag += bytes[i];
+        } 
+        
+        //for (int i = 0; i < bytes.length; i++) {
+        //   bytes[i] = bytes[i + 4];
+        //}
+
+        Taint.addTaintByteArray(bytes, tag);   
+        return r;
+        //return r - 4;
+        //end WITH_SAPPHIRE_AGATE 
+   }
     private native int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
     public native void remove(String path) throws ErrnoException;
     public native void rename(String oldPath, String newPath) throws ErrnoException;
@@ -266,8 +283,23 @@ public final class Posix implements Os {
                 String addr = (fd.hasName) ? fd.name : "unknown";
     	        String tstr = "0x" + Integer.toHexString(tag);
                 Taint.log("libcore.os.send("+addr+") received data with tag " + tstr + " data=["+dstr+"] ");
+            
+                //begin WITH_SAPPHIRE_AGATE 
+                byte[] buffer2 = new byte[((byte[])buffer).length + 4];
+                for (int i = 0; i < 4; i++) {
+                    buffer2[i] = (byte)(tag >>> (i * 8));
+                }
+
+                for (int i = 4; i < ((byte[])buffer).length + 4; i++) {
+                    buffer2[i] = ((byte[])buffer)[i - 4];
+                }
+
+	        return sendtoBytesImpl(fd, buffer2, byteOffset, byteCount + 4, flags, inetAddress, port);
+                //end WITH_SAPPHIRE_AGATE 
             }
+
         }
+
 	return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port);
     }
 // end WITH_TAINT_TRACKING
