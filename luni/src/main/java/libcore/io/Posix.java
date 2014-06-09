@@ -38,8 +38,12 @@ public final class Posix implements Os {
     public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
     public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
         Taint.log("Posix [accept]");
-        //TODO: listen on the accepted socket
-        return acceptImpl(fd, peerAddress);
+        byte[] buf = new byte[4];
+        FileDescriptor fs = acceptImpl(fd, peerAddress);
+        // First, get the ID from the other trusted runtime
+        int r = recvfrom(fs, buf, 0, 4, 0, null);
+        //Taint.log("Received ID = " + buf.to);
+        return fs;
     }
 // end WITH_SAPPHIRE_AGATE
 
@@ -60,8 +64,15 @@ public final class Posix implements Os {
     	}
         connectImpl(fd, address, port);
         //begin WITH_SAPPHIRE_AGATE
-        Taint.log("Posix [connect]");
-        //TODO: send ID
+        //Taint.log("Posix [connect]");
+
+        // First, send the ID of this runtime system, (signed by the UMS)
+        byte[] buf = new byte[4];
+        buf[0] = 1;
+        buf[1] = 1;
+        buf[2] = 1;
+        buf[3] = 1;
+        int r = sendto(fd, buf, 0, 4, 0, address, port);
         //end WITH_SAPPHIRE_AGATE
     }
 // end WITH_TAINT_TRACKING
