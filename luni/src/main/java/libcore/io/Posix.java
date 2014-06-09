@@ -33,7 +33,16 @@ import dalvik.system.Taint;
 public final class Posix implements Os {
     Posix() { }
 
-    public native FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
+// begin WITH_SAPPHIRE_AGATE
+    //public native FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
+    public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
+    public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
+        Taint.log("Posix [accept]");
+        //TODO: listen on the accepted socket
+        return acceptImpl(fd, peerAddress);
+    }
+// end WITH_SAPPHIRE_AGATE
+
     public native boolean access(String path, int mode) throws ErrnoException;
     public native void bind(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException;
     public native void chmod(String path, int mode) throws ErrnoException;
@@ -44,11 +53,16 @@ public final class Posix implements Os {
     public native void connectImpl(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException;
     public void connect(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException {
         String addr = address.getHostAddress();
+        Taint.log("Posix [connect] address = " + addr);
         if (addr != null) {
              fd.hasName = true;
              fd.name = addr;
     	}
         connectImpl(fd, address, port);
+        //begin WITH_SAPPHIRE_AGATE
+        Taint.log("Posix [connect]");
+        //TODO: send ID
+        //end WITH_SAPPHIRE_AGATE
     }
 // end WITH_TAINT_TRACKING
     public native FileDescriptor dup(FileDescriptor oldFd) throws ErrnoException;
@@ -166,7 +180,7 @@ public final class Posix implements Os {
         if (buffer == null) {
             throw new NullPointerException();
         }
-		
+
         if (buffer instanceof byte[]) {
             int fdInt = fd.getDescriptor();
             int tag = Taint.getTaintByteArray((byte[]) buffer);
@@ -227,23 +241,38 @@ public final class Posix implements Os {
     }
     public int recvfrom(FileDescriptor fd, byte[] bytes, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
         // This indirection isn't strictly necessary, but ensures that our public interface is type safe.
-        
-        //begin WITH_SAPPHIRE_AGATE 
-        int r = recvfromBytes(fd, bytes, byteOffset, byteCount, flags, srcAddress);
- 
-        int tag = 0;
-        for (int i = 0; i < 4; i++) {
-            tag = tag << 4; 
-            tag += bytes[i];
-        } 
-        
-        //for (int i = 0; i < bytes.length; i++) {
-        //   bytes[i] = bytes[i + 4];
-        //}
+        //begin WITH_SAPPHIRE_AGATE
+        Taint.log("recvfrom");
 
-        Taint.addTaintByteArray(bytes, tag);   
-        return r;
-        //return r - 4;
+        /* We assume that the application is run entirely on the trusted runtime
+           and we send and receive only on the sockets using this interface in Posix.java*/
+
+        byte[] buffer = new byte[5 * byteCount];
+        int r = recvfromBytes(fd, buffer, 0, 5 * byteCount, flags, srcAddress);
+
+        if (r <= 0)
+            return r;
+
+        int r2 = 0;
+        while (r % 5 != 0) {
+            r2 = recvfromBytes(fd, buffer, r, 5 * byteCount - r, flags, srcAddress);
+            r += r2;
+        }
+
+        Taint.log("[recvfrom] received no of bytes: " + r);
+
+        for (int i = 0; i < r/5; i++) {
+            int tag = 0;
+            for (int j = 0; j < 4; j++) {
+                tag = tag << 4;
+                tag += buffer[i * 5 + j];
+            }
+            bytes[i + byteOffset] = buffer[i * 5 + 4];
+            Taint.addTaintByteArray(bytes, tag);
+        }
+
+        //return r;
+        return r/5;
         //end WITH_SAPPHIRE_AGATE 
    }
     private native int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
@@ -274,7 +303,10 @@ public final class Posix implements Os {
     //private native int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException;
     private native int sendtoBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException;
     private int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException {
+        Taint.log("Called sendtobytes");
         if (buffer instanceof byte[]) {
+            Taint.log("sendToBytes instance of byte[]");
+
             int tag = Taint.getTaintByteArray((byte[]) buffer);
     	    if (tag != Taint.TAINT_CLEAR) {
                 String dstr = new String((byte[]) buffer, byteOffset, ((byteCount > Taint.dataBytesToLog) ? Taint.dataBytesToLog : byteCount));
@@ -283,23 +315,34 @@ public final class Posix implements Os {
                 String addr = (fd.hasName) ? fd.name : "unknown";
     	        String tstr = "0x" + Integer.toHexString(tag);
                 Taint.log("libcore.os.send("+addr+") received data with tag " + tstr + " data=["+dstr+"] ");
-            
-                //begin WITH_SAPPHIRE_AGATE 
-                byte[] buffer2 = new byte[((byte[])buffer).length + 4];
-                for (int i = 0; i < 4; i++) {
-                    buffer2[i] = (byte)(tag >>> (i * 8));
-                }
-
-                for (int i = 4; i < ((byte[])buffer).length + 4; i++) {
-                    buffer2[i] = ((byte[])buffer)[i - 4];
-                }
-
-	        return sendtoBytesImpl(fd, buffer2, byteOffset, byteCount + 4, flags, inetAddress, port);
-                //end WITH_SAPPHIRE_AGATE 
+ 
             }
 
+            //begin WITH_SAPPHIRE_AGATE
+            /* For now, we send the tag together with each byte
+               Two problems:
+                   - we send 4 times the information
+                   - it is very slow
+            */
+
+	    // TODO: Assume byteCount is correct; find a different scheme to
+            byte[] buffer2 = new byte[5 * byteCount];
+
+            for (int i = byteOffset; i < byteOffset + byteCount; i++) {
+                for (int j = 0; j < 4; j++) {
+                    buffer2[5 * i + j] = (byte)(tag >>> (j * 8));
+                }
+                buffer2[5 * i + 4] = ((byte[])buffer)[i];
+            }
+
+	    return sendtoBytesImpl(fd, buffer2, 0, 5 * byteCount, flags, inetAddress, port);
+            //end WITH_SAPPHIRE_AGATE 
+
+        } else {
+            Taint.log("Called sendtobytes not instance of bytes[]");
         }
 
+        Taint.log("Called sendtobytes taint clear");
 	return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port);
     }
 // end WITH_TAINT_TRACKING
