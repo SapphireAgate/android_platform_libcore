@@ -341,7 +341,7 @@ public final class Posix implements Os {
 
             for (int i = byteOffset; i < byteOffset + byteCount; i++) {
                 for (int j = 0; j < 4; j++) {
-                    buffer2[5 * i + j] = (byte)(tag >>> (j * 8));
+                    buffer2[5 * i + j] = (byte)(tag >>> ((3 - j) * 8));
                 }
                 buffer2[5 * i + 4] = ((byte[])buffer)[i];
             }
