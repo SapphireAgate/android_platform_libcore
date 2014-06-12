@@ -28,21 +28,50 @@ import libcore.util.MutableLong;
 
 // begin WITH_TAINT_TRACKING
 import dalvik.system.Taint;
+import dalvik.system.UserMgmtModule;
+import dalvik.system.UserFlowPolicy;
+// end WITH_TAINT_TRACKING
 // end WITH_TAINT_TRACKING
 
 public final class Posix implements Os {
     Posix() { }
 
+
+// begin WITH_SAPPHIRE_AGATE
+   private byte[] toByteArray(int value) {
+        byte[] bytes = new byte[4];
+        for (int i = 0; i < 4; i++) {
+            bytes[i] = (byte)((value >>> ((3 - i) * 8)) & 0xff);
+        }
+        return bytes; 
+   }
+
+   private int fromByteArray(byte[] bytes) {
+        int value = 0;
+        for (int i = 0; i < 4; i++) {
+            value = value << 8;
+            value |= bytes[i] & 0xff;
+        }
+        return value;
+   }
+// end WITH_SAPPHIRE_AGATE
+
 // begin WITH_SAPPHIRE_AGATE
     //public native FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
     public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
     public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
-        Taint.log("Posix [accept]");
         byte[] buf = new byte[4];
         FileDescriptor fs = acceptImpl(fd, peerAddress);
+
         // First, get the ID from the other trusted runtime
         int r = recvfrom(fs, buf, 0, 4, 0, null);
-        //Taint.log("Received ID = " + buf.to);
+        int id = fromByteArray(buf);
+
+        // Taint the filedescriptor
+        // TODO: This is hard-coded for now
+        UserFlowPolicy.addPolicyFile(fs.getDescriptor(), id == 1 ? UserFlowPolicy.POLICY_1 : 
+                                                        (id == 2 ? UserFlowPolicy.POLICY_2 : UserFlowPolicy.POLICY_3));
+
         return fs;
     }
 // end WITH_SAPPHIRE_AGATE
@@ -64,14 +93,14 @@ public final class Posix implements Os {
     	}
         connectImpl(fd, address, port);
         //begin WITH_SAPPHIRE_AGATE
-        //Taint.log("Posix [connect]");
 
+        /* Handshake to exchange certificates */
         // First, send the ID of this runtime system, (signed by the UMS)
-        byte[] buf = new byte[4];
-        buf[0] = 1;
-        buf[1] = 1;
-        buf[2] = 1;
-        buf[3] = 1;
+        int userId = UserMgmtModule.getUserId(); 
+
+        // Put user id in the message
+        byte[] buf = toByteArray(userId);
+
         int r = sendto(fd, buf, 0, 4, 0, address, port);
         //end WITH_SAPPHIRE_AGATE
     }
@@ -275,7 +304,7 @@ public final class Posix implements Os {
         for (int i = 0; i < r/5; i++) {
             int tag = 0;
             for (int j = 0; j < 4; j++) {
-                tag = tag << 4;
+                tag = tag << 8;
                 tag += buffer[i * 5 + j];
             }
             bytes[i + byteOffset] = buffer[i * 5 + 4];
@@ -330,6 +359,16 @@ public final class Posix implements Os {
             }
 
             //begin WITH_SAPPHIRE_AGATE
+
+            /* Check if policy allows to send */
+            int fd_policy = UserFlowPolicy.getPolicyFile(fd.getDescriptor());
+
+            if (UserFlowPolicy.canFlow(tag, fd_policy) == false) {
+                Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(tag) +
+                                                      " to label = 0x" + Integer.toHexString(fd_policy));
+                return 0;
+            }
+
             /* For now, we send the tag together with each byte
                Two problems:
                    - we send 4 times the information

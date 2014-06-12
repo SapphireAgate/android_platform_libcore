@@ -10,10 +10,26 @@ import java.nio.ByteBuffer;
 public final class UserFlowPolicy {
 
     public static final int NO_POLICY         = 0x00000000;
-    public static final int POLICY_1          = 0x00000001;
-    public static final int POLICY_2          = 0x00000002;
-    public static final int POLICY_3          = 0x00000004;
-   
+    public static final int POLICY_1          = 0x00000001; // Only userId 1 can read
+    public static final int POLICY_2          = 0x00000002; // Only userId 2 can read
+    public static final int POLICY_3          = 0x00000004; // Only userId 3 can read
+    public static final int POLICY_4          = 0x00000008; // Only userIds 1 and 2 can read
+    public static final int POLICY_5          = 0x00000010; // Only userIds 1 and 3 can read
+    public static final int POLICY_6          = 0x00000020; // Only userIds 2 and 3 can read
+
+
+    /**
+     * Checks if information can flow from a label to another.
+     *
+     * @param srcLabel
+     *	    the label of the source data
+     * @param destLabel
+     *	    the label of the destination data
+     * @return if data can flow
+     *
+     */
+    native public static boolean canFlow(int srcLabel, int destLabel);
+
     /**
      * Updates the target String's policy tag.
      *
@@ -23,7 +39,7 @@ public final class UserFlowPolicy {
      *	    policy Id to update (bitwise or) onto the object
      */
     native public static void addPolicyString(String str, int poid);
-    
+
     /**
      * Updates the target Object array's policy tag.
      *
