@@ -1,11 +1,11 @@
-package dalvik.system;
+package dalvik.agate;
 
 
 /**
  * Provides a User Management interface for the Dalvik VM.
  * 
  */
-public class UserMgmtModule {
+public class UserManagementModule {
 
     // assume this is tainted(can't flow anywhere outside this address space)
     private static int userId = -1;

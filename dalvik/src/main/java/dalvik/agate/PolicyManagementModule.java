@@ -1,4 +1,4 @@
-package dalvik.system;
+package dalvik.agate;
 
 import java.nio.ByteBuffer;
 
@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
  * set/get policies on Sources and Sinks.
  * 
  */
-public final class UserFlowPolicy {
+public final class PolicyManagementModule {
 
     public static final int NO_POLICY         = 0x00000000;
     public static final int POLICY_1          = 0x00000001; // Only userId 1 can read
@@ -444,6 +444,25 @@ public final class UserFlowPolicy {
      *	    the policy Id to add (bitwise or) to the file
      */
     native public static void addPolicyFile(int fd, int tag);
+
+    /**
+     * Get the policy tag from a socket identified by a descriptor.
+     *
+     * @param fd
+     *	    the target socket descriptor
+     * @return the policy tag
+     */
+    native public static int getPolicySocket(int fd);
+    
+    /**
+     * add a policy tag to a socket identified by a descriptor
+     *
+     * @param fd
+     *	    the target socket descriptor
+     * @param poid
+     *	    the policy Id to add (bitwise or) to the socket
+     */
+    native public static void addPolicySocket(int fd, int tag);
 
     /**
      * Logging utility accessible from places android.util.Log

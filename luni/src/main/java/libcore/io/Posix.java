@@ -28,8 +28,8 @@ import libcore.util.MutableLong;
 
 // begin WITH_TAINT_TRACKING
 import dalvik.system.Taint;
-import dalvik.system.UserMgmtModule;
-import dalvik.system.UserFlowPolicy;
+import dalvik.agate.UserManagementModule;
+import dalvik.agate.PolicyManagementModule;
 // end WITH_TAINT_TRACKING
 // end WITH_TAINT_TRACKING
 
@@ -67,10 +67,17 @@ public final class Posix implements Os {
         int r = recvfrom(fs, buf, 0, 4, 0, null);
         int id = fromByteArray(buf);
 
+        Taint.log("[accept] userId = " + id);
+        int fsInt = fs.getDescriptor();
+        PolicyManagementModule.logPathFromFd(fsInt);
+
         // Taint the filedescriptor
         // TODO: This is hard-coded for now
-        UserFlowPolicy.addPolicyFile(fs.getDescriptor(), id == 1 ? UserFlowPolicy.POLICY_1 : 
-                                                        (id == 2 ? UserFlowPolicy.POLICY_2 : UserFlowPolicy.POLICY_3));
+        PolicyManagementModule.addPolicySocket(fsInt, id == 1 ? PolicyManagementModule.POLICY_1 : 
+                                                        (id == 2 ? PolicyManagementModule.POLICY_2 : PolicyManagementModule.POLICY_3));
+
+        int fdInt = fs.getDescriptor();  
+        Taint.log("[accept] set policy on file descriptor = 0x" + Integer.toHexString(PolicyManagementModule.getPolicySocket(fdInt)));
 
         return fs;
     }
@@ -96,7 +103,7 @@ public final class Posix implements Os {
 
         /* Handshake to exchange certificates */
         // First, send the ID of this runtime system, (signed by the UMS)
-        int userId = UserMgmtModule.getUserId(); 
+        int userId = UserManagementModule.getUserId(); 
 
         // Put user id in the message
         byte[] buf = toByteArray(userId);
@@ -361,9 +368,12 @@ public final class Posix implements Os {
             //begin WITH_SAPPHIRE_AGATE
 
             /* Check if policy allows to send */
-            int fd_policy = UserFlowPolicy.getPolicyFile(fd.getDescriptor());
+            int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
+            Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
+            Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(tag));
 
-            if (UserFlowPolicy.canFlow(tag, fd_policy) == false) {
+
+            if (PolicyManagementModule.canFlow(tag, fd_policy) == false) {
                 Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(tag) +
                                                       " to label = 0x" + Integer.toHexString(fd_policy));
                 return 0;
