@@ -379,6 +379,8 @@ public final class Posix implements Os {
                 return 0;
             }
 
+            Taint.log("CAN send over network;");
+
             /* For now, we send the tag together with each byte
                Two problems:
                    - we send 4 times the information
