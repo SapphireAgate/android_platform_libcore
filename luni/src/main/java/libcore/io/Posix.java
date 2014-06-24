@@ -73,8 +73,8 @@ public final class Posix implements Os {
 
         // Taint the filedescriptor
         // TODO: This is hard-coded for now
-        PolicyManagementModule.addPolicySocket(fsInt, id == 1 ? PolicyManagementModule.POLICY_1 : 
-                                                        (id == 2 ? PolicyManagementModule.POLICY_2 : PolicyManagementModule.POLICY_3));
+        String[] readers = {"u1"};
+        PolicyManagementModule.addPolicySocket(fsInt, readers, null);
 
         int fdInt = fs.getDescriptor();  
         Taint.log("[accept] set policy on file descriptor = 0x" + Integer.toHexString(PolicyManagementModule.getPolicySocket(fdInt)));

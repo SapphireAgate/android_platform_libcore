@@ -35,10 +35,13 @@ public final class PolicyManagementModule {
      *
      * @param str
      *	    the target string
-     * @param poid
-     *	    policy Id to update (bitwise or) onto the object
+     * @param readers
+     *	    set of readers
+     * @param writers
+     *	    set of writers
+     *
      */
-    native public static void addPolicyString(String str, int poid);
+    native public static void addPolicyString(String str, String[] readers, String[] writers);
 
     /**
      * Updates the target Object array's policy tag.
@@ -453,16 +456,19 @@ public final class PolicyManagementModule {
      * @return the policy tag
      */
     native public static int getPolicySocket(int fd);
-    
+
     /**
      * add a policy tag to a socket identified by a descriptor
      *
      * @param fd
      *	    the target socket descriptor
-     * @param poid
-     *	    the policy Id to add (bitwise or) to the socket
+     * @param readers
+     *      set of readers
+     * @param writers
+     *      set of writers
+     *
      */
-    native public static void addPolicySocket(int fd, int tag);
+    native public static void addPolicySocket(int fd, String[] readers, String[] writers);
 
     /**
      * Logging utility accessible from places android.util.Log
