@@ -9,15 +9,6 @@ import java.nio.ByteBuffer;
  */
 public final class PolicyManagementModule {
 
-    public static final int NO_POLICY         = 0x00000000;
-    public static final int POLICY_1          = 0x00000001; // Only userId 1 can read
-    public static final int POLICY_2          = 0x00000002; // Only userId 2 can read
-    public static final int POLICY_3          = 0x00000004; // Only userId 3 can read
-    public static final int POLICY_4          = 0x00000008; // Only userIds 1 and 2 can read
-    public static final int POLICY_5          = 0x00000010; // Only userIds 1 and 3 can read
-    public static final int POLICY_6          = 0x00000020; // Only userIds 2 and 3 can read
-
-
     /**
      * Checks if information can flow from a label to another.
      *
@@ -35,50 +26,112 @@ public final class PolicyManagementModule {
      *
      * @param str
      *	    the target string
-     * @param poid
-     *	    policy Id to update (bitwise or) onto the object
+     * @param readers
+     *	    set of readers
+     * @param writers
+     *	    set of writers
+     *
      */
-    native public static void addPolicyString(String str, int poid);
+    native public static void addPolicyString(String str, String[] readers, String[] writers);
+
+    /**
+     * Updates the target String's policy tag.
+     *
+     * @param str
+     *	    the target string
+     * @param tag
+     *	    pointer to the existing policy
+     *
+     */
+    native public static void addPolicyString(String str, int tag);
 
     /**
      * Updates the target Object array's policy tag.
      *
      * @param array
      *	    the target object array
-     * @param poid
-     *	    policy Id to update (bitwise or) onto the object array
+     * @param readers
+     *	    set of readers
+     * @param writers
+     *	    set of writers
      */
-    native public static void addPolicyObjectArray(Object[] array, int poid);
+    native public static void addPolicyObjectArray(Object[] array, String[] readers, String[] writers);
+
+    /**
+     * Updates the target Object array's policy tag.
+     *
+     * @param array
+     *	    the target object array
+     * @param tag
+     *	    pointer to the existing policy
+     */
+    native public static void addPolicyObjectArray(Object[] array, int tag);
+
+    /**
+     * Updates the target boolean array's policy tag.
+     *
+     * @param array
+     *	    the target object array
+     * @param readers
+     *	    set of readers
+     * @param writers
+     *	    set of writers
+     */
+    native public static void addPolicyBooleanArray(Object[] array, String[] readers, String[] writers);
 
     /**
      * Updates the target boolean array's policy tag.
      *
      * @param array
      *	    the target boolean array
-     * @param poid
-     *	    policy Id to update (bitwise or) onto the boolean array
+     * @param tag
+     *	    pointer to the existing policy
      */
-    native public static void addPolicyBooleanArray(boolean[] array, int poid);
+    native public static void addPolicyBooleanArray(boolean[] array, int tag);
 
     /**
-     * Updates the target char array's policy tag.
+     * Updates the target char array's policy.
+     *
+     * @param array
+     *	    the target object array
+     * @param readers
+     *	    set of readers
+     * @param writers
+     *	    set of writers
+     */
+    native public static void addPolicyCharArray(Object[] array, String[] readers, String[] writers);
+
+    /**
+     * Updates the target char array's policy.
      *
      * @param array
      *	    the target char array
-     * @param poid
-     *	    policy Id to update (bitwise or) onto the char array
+     * @param tag
+     *	    pointer to existing policy
      */
-    native public static void addPolicyCharArray(char[] array, int poid);
+    native public static void addPolicyCharArray(char[] array, int tag);
 
     /**
-     * Updates the target byte array's policy tag.
+     * Updates the target byte array's policy.
+     *
+     * @param array
+     *	    the target object array
+     * @param readers
+     *	    set of readers
+     * @param writers
+     *	    set of writers
+     */
+    native public static void addPolicyByteArray(Object[] array, String[] readers, String[] writers);
+
+    /**
+     * Updates the target byte array's policy.
      *
      * @param array
      *	    the target byte array
-     * @param poid
-     *	    policy Id to update (bitwise or) onto the byte array
+     * @param tag
+     *	    pointer to existing policy
      */
-    native public static void addPolicyByteArray(byte[] array, int poid);
+    native public static void addPolicyByteArray(byte[] array, int tag);
     
     /**
      * Updates the target direct ByteBuffer's policy tag.
@@ -453,16 +506,19 @@ public final class PolicyManagementModule {
      * @return the policy tag
      */
     native public static int getPolicySocket(int fd);
-    
+
     /**
      * add a policy tag to a socket identified by a descriptor
      *
      * @param fd
      *	    the target socket descriptor
-     * @param poid
-     *	    the policy Id to add (bitwise or) to the socket
+     * @param readers
+     *      set of readers
+     * @param writers
+     *      set of writers
+     *
      */
-    native public static void addPolicySocket(int fd, int tag);
+    native public static void addPolicySocket(int fd, String[] readers, String[] writers);
 
     /**
      * Logging utility accessible from places android.util.Log
