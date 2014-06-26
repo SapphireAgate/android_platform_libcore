@@ -103,7 +103,7 @@ public final class Posix implements Os {
 
         /* Handshake to exchange certificates */
         // First, send the ID of this runtime system, (signed by the UMS)
-        int userId = UserManagementModule.getUserId(); 
+        int userId = 0;//UserManagementModule.getUserId(); 
 
         // Put user id in the message
         byte[] buf = toByteArray(userId);
