@@ -63,7 +63,8 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES += \
 	liblog \
-	libnativehelper
+	libnativehelper \
+	libdvm
 
 LOCAL_STATIC_LIBRARIES += \
 	libfdlibm
