@@ -18,6 +18,7 @@
 
 #include "AsynchronousSocketCloseMonitor.h"
 #include "JNIHelp.h"
+#include "AgateJni.h"
 #include "JniConstants.h"
 #include "JniException.h"
 #include "NetworkUtilities.h"
@@ -394,10 +395,10 @@ private:
     struct passwd* mResult;
 };
 
-// begin WITH_SAPPHIRE_AGATE
-//static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
-static jobject Posix_acceptImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
-// end WITH_SAPPHIRE_AGATE
+//// begin WITH_SAPPHIRE_AGATE
+static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
+//static jobject Posix_acceptImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
+//// end WITH_SAPPHIRE_AGATE
     sockaddr_storage ss;
     socklen_t sl = sizeof(ss);
     memset(&ss, 0, sizeof(ss));
@@ -408,6 +409,9 @@ static jobject Posix_acceptImpl(JNIEnv* env, jobject, jobject javaFd, jobject ja
         close(clientFd);
         return NULL;
     }
+// begin WITH_SAPPHIRE_AGATE
+    /* TODO: Receive and then send the unforgeable identity from/to the connecting client */
+// end WITH_SAPPHIRE_AGATE
     return (clientFd != -1) ? jniCreateFileDescriptor(env, clientFd) : NULL;
 }
 
@@ -474,6 +478,9 @@ static void Posix_connectImpl(JNIEnv* env, jobject, jobject javaFd, jobject java
     const sockaddr* sa = reinterpret_cast<const sockaddr*>(&ss);
     // We don't need the return value because we'll already have thrown.
     (void) NET_FAILURE_RETRY(env, int, connect, javaFd, sa, sa_len);
+// begin WITH_SAPPHIRE_AGATE
+    /* TODO: Send and then receive the unforgeable identity to/from the server */
+// end WITH_SAPPHIRE_AGATE
 }
 
 static jobject Posix_dup(JNIEnv* env, jobject, jobject javaOldFd) {
@@ -1095,6 +1102,17 @@ static jint Posix_readv(JNIEnv* env, jobject, jobject javaFd, jobjectArray buffe
     return throwIfMinusOne(env, "readv", TEMP_FAILURE_RETRY(readv(fd, ioVec.get(), ioVec.size())));
 }
 
+// begin WITH_SAPPHIRE_AGATE
+static int _int_from_byte_array(char* bytes) {
+    int value = 0;
+    for (unsigned int i = 0; i < sizeof(int); i++) {
+        value = value << 8;
+        value |= bytes[i] & 0xff;
+    }
+    return value;
+}
+// end WITH_SAPPHIRE_AGATE
+
 static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
     ScopedBytesRW bytes(env, javaBytes);
     if (bytes.get() == NULL) {
@@ -1105,9 +1123,55 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     memset(&ss, 0, sizeof(ss));
     sockaddr* from = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* fromLength = (javaInetSocketAddress != NULL) ? &sl : 0;
-    jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
+// begin WITH_SAPPHIRE_AGATE
+    // TODO: merge policies and set policy on javaBytes
+    // TODO: check -1 returns
+    // wait until we get the total length of the policy
+    jint r = sizeof(int);
+    char *s = (char *)malloc(sizeof(int));
+    while(r > 0) {
+        r -= NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
+    }
+    unsigned int p_size = (unsigned int) _int_from_byte_array(s);
+
+    // TODO: Not all (trusted android) apps that come with the phone run this policy protocol (ex. when I connect to wi-fi) 
+    // For now, hack it
+    if (p_size > 100) {
+        for (unsigned int i = 0; i < sizeof(int); i++) 
+        *(bytes.get() + byteOffset + i) = *(s + i);
+        free(s);
+        jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset + sizeof(int), byteCount - sizeof(int), flags, from, fromLength);
+        fillInetSocketAddress(env, recvCount, javaInetSocketAddress, ss);
+        return recvCount + sizeof(int);
+    }
+
+    ALOGE("Got policy size: %d", p_size);
+
+    // receive how much we can from the socket, but be sure it's a multiple of policy_size + 1
+    jint recvCount = sizeof(int);
+    s = (char*) malloc(byteCount * (p_size + 1));
+    while(recvCount % (p_size + 1) != 0) {
+        recvCount += NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, byteCount * (p_size + 1) - recvCount, flags, from, fromLength);
+    }
+ 
+    // TODO: for now assume same policy on all bytes ...
+    int tag = agateJniDecodePolicy(env, s);
+    // skip rest of policy
+    s += p_size - sizeof(int);
+    for (unsigned int i = 0; i < recvCount / (p_size + 1); i++) {
+        *(bytes.get() + byteOffset + i) = *s;
+        s += p_size;
+    }
+    free(s);
+
+    ALOGE("Set policy on array, %d", tag);
+    agateJniAddArrayPolicy(env, javaBytes, tag);
+
+    //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
     fillInetSocketAddress(env, recvCount, javaInetSocketAddress, ss);
-    return recvCount;
+    //return recvCount;
+    return recvCount/(p_size + 1);
+// end WITH_SAPPHIRE_AGATE
 }
 
 static void Posix_remove(JNIEnv* env, jobject, jstring javaPath) {
@@ -1151,6 +1215,16 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 // begin WITH_TAINT_TRACKING
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
+// begin WITH_SAPPHIRE_AGATE
+    /* TODO: Send policy with each byte */
+    int tag = agateJniGetArrayPolicy(env, javaBytes);
+    int socket_tag = agateJniGetSocketPolicy(env, javaFd);
+
+    if (!agateJniCanFlow(env, tag, socket_tag)) {
+        ALOGW("Data can't flow from %d to %d", tag, socket_tag);
+        return byteCount;
+    }
+// end WITH_SAPPHIRE_AGATE
 // end WITH_TAINT_TRACKING
     ScopedBytesRO bytes(env, javaBytes);
     if (bytes.get() == NULL) {
@@ -1162,7 +1236,32 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
         return -1;
     }
     const sockaddr* to = (javaInetAddress != NULL) ? reinterpret_cast<const sockaddr*>(&ss) : NULL;
-    return NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, bytes.get() + byteOffset, byteCount, flags, to, sa_len);
+
+// begin WITH_SAPPHIRE_AGATE
+    /* Encode policy as a stream of bytes */
+    int p_size = 0;
+    char* s = NULL;
+    if (tag != 0) {
+        s = agateJniEncodePolicy(env, &p_size, tag);
+    }
+    /* Create stream that encodes the policy before each byte we need to send */
+    char* p = (char*) malloc(byteCount * (p_size + 1));
+    char* q = p;
+    for (int i = 0; i < byteCount; i++) {
+        // copy policy
+        for (int j = 0; j < p_size; j++) {
+            *q++ = *(s + j);
+        }
+        // copy byte
+        *q++ = *(bytes.get() + byteOffset + i);
+    }
+
+    free(s);
+    jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, p, byteCount * (p_size + 1), flags, to, sa_len);
+    free(p);
+    return r;
+    //return NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, bytes.get() + byteOffset, byteCount, flags, to, sa_len);
+// end WITH_SAPPHIRE_AGATE
 }
 
 static void Posix_setegid(JNIEnv* env, jobject, jint egid) {
@@ -1414,10 +1513,10 @@ static jint Posix_writev(JNIEnv* env, jobject, jobject javaFd, jobjectArray buff
 }
 
 static JNINativeMethod gMethods[] = {
-    // begin WITH_SAPPHIRE_AGATE
-    //NATIVE_METHOD(Posix, accept, "(Ljava/io/FileDescriptor;Ljava/net/InetSocketAddress;)Ljava/io/FileDescriptor;"),
-    NATIVE_METHOD(Posix, acceptImpl, "(Ljava/io/FileDescriptor;Ljava/net/InetSocketAddress;)Ljava/io/FileDescriptor;"),
-    // end WITH_SAPPHIRE_AGATE
+//    // begin WITH_SAPPHIRE_AGATE
+    NATIVE_METHOD(Posix, accept, "(Ljava/io/FileDescriptor;Ljava/net/InetSocketAddress;)Ljava/io/FileDescriptor;"),
+//    NATIVE_METHOD(Posix, acceptImpl, "(Ljava/io/FileDescriptor;Ljava/net/InetSocketAddress;)Ljava/io/FileDescriptor;"),
+//    // end WITH_SAPPHIRE_AGATE
     NATIVE_METHOD(Posix, access, "(Ljava/lang/String;I)Z"),
     NATIVE_METHOD(Posix, bind, "(Ljava/io/FileDescriptor;Ljava/net/InetAddress;I)V"),
     NATIVE_METHOD(Posix, chmod, "(Ljava/lang/String;I)V"),

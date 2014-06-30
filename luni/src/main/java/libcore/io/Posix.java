@@ -38,49 +38,49 @@ public final class Posix implements Os {
 
 
 // begin WITH_SAPPHIRE_AGATE
-   private byte[] toByteArray(int value) {
-        byte[] bytes = new byte[4];
-        for (int i = 0; i < 4; i++) {
-            bytes[i] = (byte)((value >>> ((3 - i) * 8)) & 0xff);
-        }
-        return bytes; 
-   }
+//   private byte[] toByteArray(int value) {
+//        byte[] bytes = new byte[4];
+//        for (int i = 0; i < 4; i++) {
+//            bytes[i] = (byte)((value >>> ((3 - i) * 8)) & 0xff);
+//        }
+//        return bytes; 
+//   }
 
-   private int fromByteArray(byte[] bytes) {
-        int value = 0;
-        for (int i = 0; i < 4; i++) {
-            value = value << 8;
-            value |= bytes[i] & 0xff;
-        }
-        return value;
-   }
+//   private int fromByteArray(byte[] bytes) {
+//        int value = 0;
+//        for (int i = 0; i < 4; i++) {
+//            value = value << 8;
+//            value |= bytes[i] & 0xff;
+//        }
+//        return value;
+//   }
 // end WITH_SAPPHIRE_AGATE
 
 // begin WITH_SAPPHIRE_AGATE
-    //public native FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
-    public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
-    public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
-        byte[] buf = new byte[4];
-        FileDescriptor fs = acceptImpl(fd, peerAddress);
-
-        // First, get the ID from the other trusted runtime
-        int r = recvfrom(fs, buf, 0, 4, 0, null);
-        int id = fromByteArray(buf);
-
-        Taint.log("[accept] userId = " + id);
-        int fsInt = fs.getDescriptor();
-        PolicyManagementModule.logPathFromFd(fsInt);
-
-        // Taint the filedescriptor
-        // TODO: This is hard-coded for now
-        String[] readers = {"u1"};
-        PolicyManagementModule.addPolicySocket(fsInt, readers, null);
-
-        int fdInt = fs.getDescriptor();  
-        Taint.log("[accept] set policy on file descriptor = 0x" + Integer.toHexString(PolicyManagementModule.getPolicySocket(fdInt)));
-
-        return fs;
-    }
+    public native FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
+//    public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
+//    public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
+//        byte[] buf = new byte[4];
+//        FileDescriptor fs = acceptImpl(fd, peerAddress);
+//
+//        // First, get the ID from the other trusted runtime
+//        int r = recvfrom(fs, buf, 0, 4, 0, null);
+//        int id = fromByteArray(buf);
+//
+//        Taint.log("[accept] userId = " + id);
+//        int fsInt = fs.getDescriptor();
+//        PolicyManagementModule.logPathFromFd(fsInt);
+//
+//        // Taint the filedescriptor
+//        // TODO: This is hard-coded for now
+//        String[] readers = {"u1"};
+//        PolicyManagementModule.addPolicySocket(fsInt, readers, null);
+//
+//        int fdInt = fs.getDescriptor();  
+//        Taint.log("[accept] set policy on file descriptor = 0x" + Integer.toHexString(PolicyManagementModule.getPolicySocket(fdInt)));
+//
+//        return fs;
+//    }
 // end WITH_SAPPHIRE_AGATE
 
     public native boolean access(String path, int mode) throws ErrnoException;
@@ -99,17 +99,17 @@ public final class Posix implements Os {
              fd.name = addr;
     	}
         connectImpl(fd, address, port);
-        //begin WITH_SAPPHIRE_AGATE
-
-        /* Handshake to exchange certificates */
-        // First, send the ID of this runtime system, (signed by the UMS)
-        int userId = UserManagementModule.getUserId(); 
-
-        // Put user id in the message
-        byte[] buf = toByteArray(userId);
-
-        int r = sendto(fd, buf, 0, 4, 0, address, port);
-        //end WITH_SAPPHIRE_AGATE
+//begin WITH_SAPPHIRE_AGATE
+//
+//        /* Handshake to exchange certificates */
+//        // First, send the ID of this runtime system, (signed by the UMS)
+//        int userId = UserManagementModule.getUserId(); 
+//
+//        // Put user id in the message
+//        byte[] buf = toByteArray(userId);
+//
+//        int r = sendto(fd, buf, 0, 4, 0, address, port);
+//end WITH_SAPPHIRE_AGATE
     }
 // end WITH_TAINT_TRACKING
     public native FileDescriptor dup(FileDescriptor oldFd) throws ErrnoException;
@@ -288,40 +288,41 @@ public final class Posix implements Os {
     }
     public int recvfrom(FileDescriptor fd, byte[] bytes, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
         // This indirection isn't strictly necessary, but ensures that our public interface is type safe.
-        //begin WITH_SAPPHIRE_AGATE
-        Taint.log("recvfrom");
-
-        /* We assume that the application is run entirely on the trusted runtime
-           and we send and receive only on the sockets using this interface in Posix.java*/
-
-        byte[] buffer = new byte[5 * byteCount];
-        int r = recvfromBytes(fd, buffer, 0, 5 * byteCount, flags, srcAddress);
-
-        if (r <= 0)
-            return r;
-
-        int r2 = 0;
-        while (r % 5 != 0) {
-            r2 = recvfromBytes(fd, buffer, r, 5 * byteCount - r, flags, srcAddress);
-            r += r2;
-        }
-
-        Taint.log("[recvfrom] received no of bytes: " + r);
-
-        for (int i = 0; i < r/5; i++) {
-            int tag = 0;
-            for (int j = 0; j < 4; j++) {
-                tag = tag << 8;
-                tag += buffer[i * 5 + j];
-            }
-            bytes[i + byteOffset] = buffer[i * 5 + 4];
-            Taint.addTaintByteArray(bytes, tag);
-        }
-
-        //return r;
-        return r/5;
-        //end WITH_SAPPHIRE_AGATE 
-   }
+        return recvfromBytes(fd, bytes, byteOffset, byteCount, flags, srcAddress);
+//        //begin WITH_SAPPHIRE_AGATE
+//        Taint.log("recvfrom");
+//
+//        /* We assume that the application is run entirely on the trusted runtime
+//           and we send and receive only on the sockets using this interface in Posix.java*/
+//
+//        byte[] buffer = new byte[5 * byteCount];
+//        int r = recvfromBytes(fd, buffer, 0, 5 * byteCount, flags, srcAddress);
+//
+//        if (r <= 0)
+//            return r;
+//
+//        int r2 = 0;
+//        while (r % 5 != 0) {
+//            r2 = recvfromBytes(fd, buffer, r, 5 * byteCount - r, flags, srcAddress);
+//            r += r2;
+//        }
+//
+//        Taint.log("[recvfrom] received no of bytes: " + r);
+//
+//        for (int i = 0; i < r/5; i++) {
+//            int tag = 0;
+//            for (int j = 0; j < 4; j++) {
+//                tag = tag << 8;
+//                tag += buffer[i * 5 + j];
+//            }
+//            bytes[i + byteOffset] = buffer[i * 5 + 4];
+//            Taint.addTaintByteArray(bytes, tag);
+//        }
+//
+//        //return r;
+//        return r/5;
+//        //end WITH_SAPPHIRE_AGATE 
+    }
     private native int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
     public native void remove(String path) throws ErrnoException;
     public native void rename(String oldPath, String newPath) throws ErrnoException;
@@ -365,46 +366,48 @@ public final class Posix implements Os {
  
             }
 
-            //begin WITH_SAPPHIRE_AGATE
-
-            /* Check if policy allows to send */
-            int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
-            Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
-            Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(tag));
-
-
-            if (PolicyManagementModule.canFlow(tag, fd_policy) == false) {
-                Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(tag) +
-                                                      " to label = 0x" + Integer.toHexString(fd_policy));
-                return 0;
-            }
-
-            Taint.log("CAN send over network;");
-
-            /* For now, we send the tag together with each byte
-               Two problems:
-                   - we send 4 times the information
-                   - it is very slow
-            */
-
-	    // TODO: Assume byteCount is correct; find a different scheme to
-            byte[] buffer2 = new byte[5 * byteCount];
-
-            for (int i = byteOffset; i < byteOffset + byteCount; i++) {
-                for (int j = 0; j < 4; j++) {
-                    buffer2[5 * i + j] = (byte)(tag >>> ((3 - j) * 8));
-                }
-                buffer2[5 * i + 4] = ((byte[])buffer)[i];
-            }
-
-	    return sendtoBytesImpl(fd, buffer2, 0, 5 * byteCount, flags, inetAddress, port);
-            //end WITH_SAPPHIRE_AGATE 
-
-        } else {
-            Taint.log("Called sendtobytes not instance of bytes[]");
+//            //begin WITH_SAPPHIRE_AGATE
+//
+//            /* Check if policy allows to send */
+//            int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
+//            Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
+//            Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(tag));
+//
+//
+//            if (PolicyManagementModule.canFlow(tag, fd_policy) == false) {
+//                Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(tag) +
+//                                                      " to label = 0x" + Integer.toHexString(fd_policy));
+//                return 0;
+//            }
+//
+//            Taint.log("CAN send over network;");
+//
+//            /* For now, we send the tag together with each byte
+//               Two problems:
+//                   - we send 4 times the information
+//                   - it is very slow
+//            */
+//
+//	    // TODO: Assume byteCount is correct; find a different scheme to
+//            byte[] buffer2 = new byte[5 * byteCount];
+//
+//            for (int i = byteOffset; i < byteOffset + byteCount; i++) {
+//                for (int j = 0; j < 4; j++) {
+//                    buffer2[5 * i + j] = (byte)(tag >>> ((3 - j) * 8));
+//                }
+//                buffer2[5 * i + 4] = ((byte[])buffer)[i];
+//            }
+//
+//	    return sendtoBytesImpl(fd, buffer2, 0, 5 * byteCount, flags, inetAddress, port);
+//            //end WITH_SAPPHIRE_AGATE 
+//
+//        } else {
+//            Taint.log("Called sendtobytes not instance of bytes[]");
+//        }
+//
+//        Taint.log("Called sendtobytes taint clear");
+//        // end WITH_SAPPHIRE_AGATE
         }
-
-        Taint.log("Called sendtobytes taint clear");
 	return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port);
     }
 // end WITH_TAINT_TRACKING
