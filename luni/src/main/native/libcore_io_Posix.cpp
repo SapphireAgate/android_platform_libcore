@@ -1126,11 +1126,21 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
 // begin WITH_SAPPHIRE_AGATE
     // TODO: merge policies and set policy on javaBytes
     // TODO: check -1 returns
-    // wait until we get the total length of the policy
+
+    /* Wait until we get the total length of the policy */
+    //ALOGW("[Recvfrom]");
     jint r = sizeof(int);
     char *s = (char *)malloc(sizeof(int));
-    while(r > 0) {
-        r -= NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
+    while (r > 0) {
+        jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
+        //ALOGW("Res = %d", res);
+        if (res == -1 || res == 0) {
+            //ALOGW("Return -1 or 0");
+            fillInetSocketAddress(env, res, javaInetSocketAddress, ss);
+            free(s);
+            return res;
+        }
+        r -= res;
     }
     unsigned int p_size = (unsigned int) _int_from_byte_array(s);
 
@@ -1145,32 +1155,34 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
         return recvCount + sizeof(int);
     }
 
-    ALOGE("Got policy size: %d", p_size);
+    //ALOGE("Got policy size: %d", p_size);
 
-    // receive how much we can from the socket, but be sure it's a multiple of policy_size + 1
-    jint recvCount = sizeof(int);
+    /* Receive as much as we can from the socket, but be sure it's a multiple of policy_size + 1 */
+    r = sizeof(int);
     s = (char*) malloc(byteCount * (p_size + 1));
-    while(recvCount % (p_size + 1) != 0) {
-        recvCount += NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, byteCount * (p_size + 1) - recvCount, flags, from, fromLength);
+    while (r % (p_size + 1) != 0) {
+        r += NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, byteCount * (p_size + 1) - r, flags, from, fromLength);
     }
+    //ALOGW("Received %d bytes", r);
  
     // TODO: for now assume same policy on all bytes ...
     int tag = agateJniDecodePolicy(env, s);
+    //ALOGE("Set policy on array, %p", (void *)tag);
     // skip rest of policy
+    char* tmp = s;
     s += p_size - sizeof(int);
-    for (unsigned int i = 0; i < recvCount / (p_size + 1); i++) {
+    for (unsigned int i = 0; i < r / (p_size + 1); i++) {
         *(bytes.get() + byteOffset + i) = *s;
-        s += p_size;
+        //ALOGW("byte[%d]: %c", i, *s);
+        s += p_size + 1;
     }
-    free(s);
+    free(tmp);
 
-    ALOGE("Set policy on array, %d", tag);
     agateJniAddArrayPolicy(env, javaBytes, tag);
-
     //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
-    fillInetSocketAddress(env, recvCount, javaInetSocketAddress, ss);
+    fillInetSocketAddress(env, r / (p_size + 1), javaInetSocketAddress, ss);
     //return recvCount;
-    return recvCount/(p_size + 1);
+    return r / (p_size + 1);
 // end WITH_SAPPHIRE_AGATE
 }
 
@@ -1216,7 +1228,7 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 // begin WITH_SAPPHIRE_AGATE
-    /* TODO: Send policy with each byte */
+    /* Send policy with each byte */
     int tag = agateJniGetArrayPolicy(env, javaBytes);
     int socket_tag = agateJniGetSocketPolicy(env, javaFd);
 
@@ -1244,21 +1256,30 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
     if (tag != 0) {
         s = agateJniEncodePolicy(env, &p_size, tag);
     }
-    /* Create stream that encodes the policy before each byte we need to send */
-    char* p = (char*) malloc(byteCount * (p_size + 1));
-    char* q = p;
-    for (int i = 0; i < byteCount; i++) {
-        // copy policy
-        for (int j = 0; j < p_size; j++) {
-            *q++ = *(s + j);
-        }
-        // copy byte
-        *q++ = *(bytes.get() + byteOffset + i);
-    }
 
-    free(s);
-    jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, p, byteCount * (p_size + 1), flags, to, sa_len);
-    free(p);
+    jint r = 0;
+    /* Create stream that encodes the policy before each byte we need to send */
+    if (p_size > 0) {
+        char* p = (char*) malloc(byteCount * (p_size + 1));
+        char* q = p;
+        for (int i = 0; i < byteCount; i++) {
+            // copy policy
+            for (int j = 0; j < p_size; j++) {
+                *q++ = *(s + j);
+                //ALOGW("byte[%d]: %c", i * p_size + j, *(q - 1));
+            }
+            // copy byte
+            *q++ = *(bytes.get() + byteOffset + i);
+            //ALOGW("byte[%d]: %c", i * (p_size + 1) + p_size, *(q - 1));
+        }
+        free(s);
+        r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, p, byteCount * (p_size + 1), flags, to, sa_len);
+        free(p);
+    } else {
+        r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, bytes.get() + byteOffset, byteCount, flags, to, sa_len);
+    }
+    //ALOGE("Sending %d bytes", byteCount * (p_size + 1));
+
     return r;
     //return NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, bytes.get() + byteOffset, byteCount, flags, to, sa_len);
 // end WITH_SAPPHIRE_AGATE
