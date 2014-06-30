@@ -104,9 +104,12 @@ public final class Posix implements Os {
 //        /* Handshake to exchange certificates */
 //        // First, send the ID of this runtime system, (signed by the UMS)
 //        int userId = UserManagementModule.getUserId(); 
+//        String username = UserManagementModule.getUserName(); 
+//	if(username == null)
+//		throw new SocketException("failed to contact database");
 //
 //        // Put user id in the message
-//        byte[] buf = toByteArray(userId);
+//        byte[] buf = username.getBytes();
 //
 //        int r = sendto(fd, buf, 0, 4, 0, address, port);
 //end WITH_SAPPHIRE_AGATE
