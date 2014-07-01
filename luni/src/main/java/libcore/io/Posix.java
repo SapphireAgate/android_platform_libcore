@@ -93,7 +93,6 @@ public final class Posix implements Os {
     public native void connectImpl(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException;
     public void connect(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException {
         String addr = address.getHostAddress();
-        Taint.log("Posix [connect] address = " + addr);
         if (addr != null) {
              fd.hasName = true;
              fd.name = addr;
@@ -354,10 +353,7 @@ public final class Posix implements Os {
     //private native int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException;
     private native int sendtoBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException;
     private int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException {
-        Taint.log("Called sendtobytes");
         if (buffer instanceof byte[]) {
-            Taint.log("sendToBytes instance of byte[]");
-
             int tag = Taint.getTaintByteArray((byte[]) buffer);
     	    if (tag != Taint.TAINT_CLEAR) {
                 String dstr = new String((byte[]) buffer, byteOffset, ((byteCount > Taint.dataBytesToLog) ? Taint.dataBytesToLog : byteCount));
