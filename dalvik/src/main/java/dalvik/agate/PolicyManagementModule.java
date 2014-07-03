@@ -32,7 +32,7 @@ public final class PolicyManagementModule {
      *	    set of writers
      *
      */
-    native public static void addPolicyString(String str, String[] readers, String[] writers);
+    native public static void addPolicyString(String str, int[] readers, int[] writers);
 
     /**
      * Updates the target String's policy tag.
@@ -55,7 +55,7 @@ public final class PolicyManagementModule {
      * @param writers
      *	    set of writers
      */
-    native public static void addPolicyObjectArray(Object[] array, String[] readers, String[] writers);
+    native public static void addPolicyObjectArray(Object[] array, int[] readers, int[] writers);
 
     /**
      * Updates the target Object array's policy tag.
@@ -77,7 +77,7 @@ public final class PolicyManagementModule {
      * @param writers
      *	    set of writers
      */
-    native public static void addPolicyBooleanArray(Object[] array, String[] readers, String[] writers);
+    native public static void addPolicyBooleanArray(Object[] array, int[] readers, int[] writers);
 
     /**
      * Updates the target boolean array's policy tag.
@@ -99,7 +99,7 @@ public final class PolicyManagementModule {
      * @param writers
      *	    set of writers
      */
-    native public static void addPolicyCharArray(Object[] array, String[] readers, String[] writers);
+    native public static void addPolicyCharArray(Object[] array, int[] readers, int[] writers);
 
     /**
      * Updates the target char array's policy.
@@ -121,7 +121,7 @@ public final class PolicyManagementModule {
      * @param writers
      *	    set of writers
      */
-    native public static void addPolicyByteArray(Object[] array, String[] readers, String[] writers);
+    native public static void addPolicyByteArray(Object[] array, int[] readers, int[] writers);
 
     /**
      * Updates the target byte array's policy.
@@ -518,7 +518,7 @@ public final class PolicyManagementModule {
      *      set of writers
      *
      */
-    native public static void addPolicySocket(int fd, String[] readers, String[] writers);
+    native public static void addPolicySocket(int fd, int[] readers, int[] writers);
 
     /**
      * Logging utility accessible from places android.util.Log
