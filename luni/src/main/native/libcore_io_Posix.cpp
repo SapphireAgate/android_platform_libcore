@@ -1237,8 +1237,6 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     //ALOGE("Set policy on array, %p", (void *)tag);
     // skip rest of policy
 
-    agateJniPrintPolicy(tag);
-
     char* tmp = s;
     s += p_size - sizeof(int);
     for (unsigned int i = 0; i < r / (p_size + 1); i++) {
