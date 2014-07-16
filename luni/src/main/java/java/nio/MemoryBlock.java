@@ -104,7 +104,7 @@ class MemoryBlock {
 // begin WITH_TAINT_TRACKING
     protected int taint;
     public void addTaint(int newTaint) {
-        taint = taint | newTaint;
+        taint = dalvik.agate.PolicyManagementModule.mergePolicies(taint, newTaint);
     }
 // end WITH_TAINT_TRACKING
 

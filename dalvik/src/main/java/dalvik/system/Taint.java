@@ -37,7 +37,7 @@ public final class Taint {
     public static final int TAINT_LOCATION_NET  = 0x00000020;
     public static final int TAINT_LOCATION_LAST = 0x00000040;
     public static final int TAINT_CAMERA        = 0x00000080;
-    public static final int TAINT_ACCELEROMETER = 0x00000100;
+    public static int TAINT_ACCELEROMETER = 0x00000100;
     public static final int TAINT_SMS           = 0x00000200;
     public static final int TAINT_IMEI          = 0x00000400;
     public static final int TAINT_IMSI          = 0x00000800;

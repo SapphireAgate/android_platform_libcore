@@ -55,6 +55,9 @@
 #include <termios.h>
 #include <unistd.h>
 
+//static int currentPolicy = 0;
+static int remainingBytes = 0;
+
 #define TO_JAVA_STRING(NAME, EXP) \
         jstring NAME = env->NewStringUTF(EXP); \
         if (NAME == NULL) return NULL;
@@ -1114,6 +1117,7 @@ static int _int_from_byte_array(char* bytes) {
 // end WITH_SAPPHIRE_AGATE
 
 static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
+	return -1;
     ScopedBytesRW bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
@@ -1123,25 +1127,28 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     memset(&ss, 0, sizeof(ss));
     sockaddr* from = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* fromLength = (javaInetSocketAddress != NULL) ? &sl : 0;
-// begin WITH_SAPPHIRE_AGATE
-    // TODO: merge policies and set policy on javaBytes
-    // TODO: check -1 returns
 
-    /* Wait until we get the total length of the policy */
-    //ALOGW("[Recvfrom]");
-    jint r = sizeof(int);
-    char *s = (char *)malloc(sizeof(int));
-    while (r > 0) {
-        jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
-        //ALOGW("Res = %d", res);
-        if (res == -1 || res == 0) {
-            //ALOGW("Return -1 or 0");
-            fillInetSocketAddress(env, res, javaInetSocketAddress, ss);
-            free(s);
-            return res;
-        }
-        r -= res;
-    }
+    ALOGW("[Recvfrom]");
+
+	// update the policy if necessary
+	jint r;
+	char* s;
+	if(remainingBytes == 0) {
+		// read the policy
+		r = sizeof(int);
+		s = (char *)malloc(sizeof(int));
+		while (r > 0) {
+		    jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
+		    //ALOGW("Res = %d", res);
+		    if (res == -1 || res == 0) {
+		        //ALOGW("Return -1 or 0");
+		        fillInetSocketAddress(env, res, javaInetSocketAddress, ss);
+		        free(s);
+		        return res;
+		    }
+		    r -= res;
+		}
+	}
     unsigned int p_size = (unsigned int) _int_from_byte_array(s);
 
     // TODO: Not all (trusted android) apps that come with the phone run this policy protocol (ex. when I connect to wi-fi) 
@@ -1182,8 +1189,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
     fillInetSocketAddress(env, r / (p_size + 1), javaInetSocketAddress, ss);
     //return recvCount;
-    return r / (p_size + 1);
-// end WITH_SAPPHIRE_AGATE
+    return r;
 }
 
 static void Posix_remove(JNIEnv* env, jobject, jstring javaPath) {
@@ -1227,6 +1233,7 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 // begin WITH_TAINT_TRACKING
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
+	return -1;
 // begin WITH_SAPPHIRE_AGATE
     /* Send policy with each byte */
     int tag = agateJniGetArrayPolicy(env, javaBytes);
