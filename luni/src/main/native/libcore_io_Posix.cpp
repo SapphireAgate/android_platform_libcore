@@ -55,9 +55,6 @@
 #include <termios.h>
 #include <unistd.h>
 
-//static int currentPolicy = 0;
-static int remainingBytes = 0;
-
 #define TO_JAVA_STRING(NAME, EXP) \
         jstring NAME = env->NewStringUTF(EXP); \
         if (NAME == NULL) return NULL;
