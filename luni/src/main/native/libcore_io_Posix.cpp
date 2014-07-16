@@ -98,6 +98,24 @@ struct addrinfo_deleter {
     } while (_rc == -1); \
     _rc; })
 
+// begin WITH_SAPPHIRE_AGATE
+static int _int_from_byte_array(char* bytes) {
+    int value = 0;
+    for (unsigned int i = 0; i < sizeof(int); i++) {
+        value = value << 8;
+        value |= bytes[i] & 0xff;
+    }
+    return value;
+}
+
+static char* _int_to_byte_array(char* s, int value) {
+    for (unsigned int i = 0; i < sizeof(int); i++) {
+        *(s + i) = (char)((value >> ((sizeof(int) - i - 1) * 8)) & 0xff);
+    }
+    return s + sizeof(int);
+}
+// end WITH_SAPPHIRE_AGATE
+
 static void throwException(JNIEnv* env, jclass exceptionClass, jmethodID ctor3, jmethodID ctor2,
         const char* functionName, int error) {
     jthrowable cause = NULL;
@@ -412,10 +430,43 @@ static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaIn
         close(clientFd);
         return NULL;
     }
+
 // begin WITH_SAPPHIRE_AGATE
-    /* TODO: Receive and then send the unforgeable identity from/to the connecting client */
+    /* Receive and then send (TODO) the unforgeable identity from/to the connecting client */
+    if (clientFd == -1)
+        return NULL;
+
+    jobject fd = jniCreateFileDescriptor(env, clientFd);
+
+    /* Get size of certificate */
+    /* Read the certificate (for now just the userId) */
+    char* s = (char*) malloc(sizeof(int));
+    jint r = sizeof(int);
+    while (r > 0) { // read sizeof(int) bytes from socket
+        jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, fd, s + sizeof(int) - r, r, 0, NULL, 0);
+        r -= res;
+    }
+
+    unsigned int c_size = (unsigned int) _int_from_byte_array(s);
+
+    // Encode policy in s (just one reader, the user of the certificate)
+    s = (char*)malloc(sizeof(int) + c_size);
+    char* tmp = s;
+    s = _int_to_byte_array(s, 1);           // vector size
+    r = c_size;
+    while (r > 0) {  // read the username
+        jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, fd, s + c_size - r, r, 0, NULL, 0);
+        r -= res;
+    }
+
+    /* Set policy on the file descriptor */
+    int tag = agateJniDecodePolicy(env, tmp);
+    free(tmp);
+    agateJniAddSocketPolicy(env, fd, tag);
+    ALOGI("AgateLog: [Posix_accept] set policy %p on file descriptor.", (void*) tag);
+    return fd;
+    //return (clientFd != -1) ? jniCreateFileDescriptor(env, clientFd) : NULL;
 // end WITH_SAPPHIRE_AGATE
-    return (clientFd != -1) ? jniCreateFileDescriptor(env, clientFd) : NULL;
 }
 
 static jboolean Posix_access(JNIEnv* env, jobject, jstring javaPath, jint mode) {
@@ -482,7 +533,29 @@ static void Posix_connectImpl(JNIEnv* env, jobject, jobject javaFd, jobject java
     // We don't need the return value because we'll already have thrown.
     (void) NET_FAILURE_RETRY(env, int, connect, javaFd, sa, sa_len);
 // begin WITH_SAPPHIRE_AGATE
-    /* TODO: Send and then receive the unforgeable identity to/from the server */
+    /* Send and then receive(TODO) the unforgeable identity to/from the server */
+    /* Handshake to exchange certificates */
+    int userId = agateJniGetCertificate(env);
+    if (userId == -1) {
+        ALOGE("AgateLog: [Posix_connect] Login required (or you'll be logged in as anonymous)");
+        //TODO: for now, allow (for the android  apps that don't run our trusted runtime - they will be
+        // started with another flag )
+        return;
+    }
+
+    int cert_size = sizeof(int); //for now just send the userId
+    char* s = (char*)malloc(sizeof(int) + cert_size);
+    char* tmp = s;
+    s = _int_to_byte_array(s, cert_size); // total size of certificate
+    s = _int_to_byte_array(s, userId);
+
+    jint r = sizeof(int) + cert_size;
+    while (r > 0) { // read sizeof(int) bytes from socket
+        jint res = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, tmp + sizeof(int) + cert_size - r, r, 0, sa, sa_len);
+        r -= res;
+    }
+    free(tmp);
+    ALOGI("AgateLog: [Posix_connect] sent certificate. userId = %d", userId);
 // end WITH_SAPPHIRE_AGATE
 }
 
@@ -1105,16 +1178,6 @@ static jint Posix_readv(JNIEnv* env, jobject, jobject javaFd, jobjectArray buffe
     return throwIfMinusOne(env, "readv", TEMP_FAILURE_RETRY(readv(fd, ioVec.get(), ioVec.size())));
 }
 
-// begin WITH_SAPPHIRE_AGATE
-static int _int_from_byte_array(char* bytes) {
-    int value = 0;
-    for (unsigned int i = 0; i < sizeof(int); i++) {
-        value = value << 8;
-        value |= bytes[i] & 0xff;
-    }
-    return value;
-}
-// end WITH_SAPPHIRE_AGATE
 
 static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
 	return -1;
@@ -1128,27 +1191,24 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     sockaddr* from = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* fromLength = (javaInetSocketAddress != NULL) ? &sl : 0;
 
-    ALOGW("[Recvfrom]");
+// begin WITH_SAPPHIRE_AGATE
+    // TODO: merge policies and set policy on javaBytes
+    // TODO: check -1 returns
 
-	// update the policy if necessary
-	jint r;
-	char* s;
-	if(remainingBytes == 0) {
-		// read the policy
-		r = sizeof(int);
-		s = (char *)malloc(sizeof(int));
-		while (r > 0) {
-		    jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
-		    //ALOGW("Res = %d", res);
-		    if (res == -1 || res == 0) {
-		        //ALOGW("Return -1 or 0");
-		        fillInetSocketAddress(env, res, javaInetSocketAddress, ss);
-		        free(s);
-		        return res;
-		    }
-		    r -= res;
-		}
-	}
+    /* Wait until we get the total length of the policy */
+    //ALOGW("[Recvfrom]");
+    jint r = sizeof(int);
+    char *s = (char *)malloc(sizeof(int));
+    while (r > 0) {
+        jint res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, s, r, flags, from, fromLength);
+        if (res == -1 || res == 0) {
+            fillInetSocketAddress(env, res, javaInetSocketAddress, ss);
+            free(s);
+            return res;
+        }
+        r -= res;
+    }
+
     unsigned int p_size = (unsigned int) _int_from_byte_array(s);
 
     // TODO: Not all (trusted android) apps that come with the phone run this policy protocol (ex. when I connect to wi-fi) 
@@ -1162,7 +1222,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
         return recvCount + sizeof(int);
     }
 
-    //ALOGE("Got policy size: %d", p_size);
+    ALOGI("AgateLog: [Posix_recvfrom] Got policy size: %d", p_size);
 
     /* Receive as much as we can from the socket, but be sure it's a multiple of policy_size + 1 */
     r = sizeof(int);
@@ -1176,16 +1236,19 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     int tag = agateJniDecodePolicy(env, s);
     //ALOGE("Set policy on array, %p", (void *)tag);
     // skip rest of policy
+
+    agateJniPrintPolicy(tag);
+
     char* tmp = s;
     s += p_size - sizeof(int);
     for (unsigned int i = 0; i < r / (p_size + 1); i++) {
         *(bytes.get() + byteOffset + i) = *s;
-        //ALOGW("byte[%d]: %c", i, *s);
         s += p_size + 1;
     }
     free(tmp);
-
+    ALOGI("AgateLog: [Posix_recvfrom] Received message: %s", bytes.get());
     agateJniAddArrayPolicy(env, javaBytes, tag);
+    ALOGI("AgateLog: [Posix_recvfrom] Set policy on byte array: %p", (void*) tag);
     //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
     fillInetSocketAddress(env, r / (p_size + 1), javaInetSocketAddress, ss);
     //return recvCount;
@@ -1239,10 +1302,14 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
     int tag = agateJniGetArrayPolicy(env, javaBytes);
     int socket_tag = agateJniGetSocketPolicy(env, javaFd);
 
+    //ALOGE("AgateLog: [Posix_sendto] OK3; tag on array = %p, tag on socket = %p", (void*)tag, (void*)socket_tag);
     if (!agateJniCanFlow(env, tag, socket_tag)) {
-        ALOGW("Data can't flow from %d to %d", tag, socket_tag);
+        ALOGW("AgateLog: [Posix_sendto] Data CAN NOT flow from %d to %d", tag, socket_tag);
         return byteCount;
     }
+
+    ALOGI("AgateLog: [Posix_sendto] Data CAN flow from %d to %d", tag, socket_tag);
+
 // end WITH_SAPPHIRE_AGATE
 // end WITH_TAINT_TRACKING
     ScopedBytesRO bytes(env, javaBytes);
@@ -1285,7 +1352,7 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
     } else {
         r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, bytes.get() + byteOffset, byteCount, flags, to, sa_len);
     }
-    //ALOGE("Sending %d bytes", byteCount * (p_size + 1));
+    ALOGI("AgateLog: [Posix_sendto] Sent %d bytes.", byteCount * (p_size + 1));
 
     return r;
     //return NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, bytes.get() + byteOffset, byteCount, flags, to, sa_len);
