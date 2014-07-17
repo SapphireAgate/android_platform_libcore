@@ -1244,7 +1244,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
 
     /* Set policy on the bytes array and then safe to release from tracked heap memory */
     agateJniAddArrayPolicy(env, javaBytes, tag);
-    agateJniReleasePolicy(tag);
+    agateJniReleasePolicy(env, tag);
     ALOGI("AgateLog: [Posix_recvfrom] Set policy on byte array: %p; actual policy = %p", (void*) tag, (void*) agateJniGetArrayPolicy(env, javaBytes));
     //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
     fillInetSocketAddress(env, r / (p_size + 1), javaInetSocketAddress, ss);
