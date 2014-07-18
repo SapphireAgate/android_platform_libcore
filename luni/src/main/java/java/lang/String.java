@@ -581,7 +581,7 @@ outer:
     public native char charAt_intrinsic(int index);
     
     public char charAt(int index) {
-        return Taint.addTaintChar(charAt_intrinsic(index), Taint.getTaintString(this)|Taint.getTaintInt(index));
+        return Taint.addTaintChar(charAt_intrinsic(index), dalvik.agate.PolicyManagementModule.mergePolicies(Taint.getTaintString(this),Taint.getTaintInt(index)));
     }
 // end WITH_TAINT_TRACKING
 

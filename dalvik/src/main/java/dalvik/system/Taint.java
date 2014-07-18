@@ -46,7 +46,7 @@ public final class Taint {
     //public static final int TAINT_DEVICE_SN     = 0x00002000;
     //public static final int TAINT_ACCOUNT       = 0x00004000;
     //public static final int TAINT_HISTORY       = 0x00008000;
-    
+ 
     public static final int TAINT_LOCATION      = 0x00000000;
     public static final int TAINT_CONTACTS      = 0x00000000;
     public static final int TAINT_MIC           = 0x00000000;

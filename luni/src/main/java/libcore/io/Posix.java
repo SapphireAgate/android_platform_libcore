@@ -17,6 +17,7 @@
 package libcore.io;
 
 import java.io.FileDescriptor;
+import java.util.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -35,7 +36,16 @@ import dalvik.agate.PolicyManagementModule;
 
 public final class Posix implements Os {
     Posix() { }
+	private static class SocketTaint {
+		public SocketTaint(int taint, int byteCount) {
+			this.taint = taint;
+			this.byteCount = byteCount;
+		}
 
+		int taint;
+		int byteCount;
+	}
+	private static final Map<Integer, SocketTaint> socketTaint = new HashMap<Integer, SocketTaint>();
 
 // begin WITH_SAPPHIRE_AGATE
 //   private byte[] toByteArray(int value) {

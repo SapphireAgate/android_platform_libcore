@@ -21,6 +21,18 @@ public final class PolicyManagementModule {
      */
     native public static boolean canFlow(int srcLabel, int destLabel);
 
+	/**
+	 * Merge two policy labels to create a composite label
+	 *
+	 * @param label1
+	 *		one policy
+	 * @param label2
+	 *		second policy
+	 * @return a new policy satisfying label1 and label2
+	 *
+	 */
+	native public static int mergePolicies(int label1, int label2);
+
     /**
      * Updates the target String's policy tag.
      *

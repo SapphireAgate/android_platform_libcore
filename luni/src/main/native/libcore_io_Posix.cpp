@@ -1177,6 +1177,7 @@ static jint Posix_readv(JNIEnv* env, jobject, jobject javaFd, jobjectArray buffe
 
 
 static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
+	return -1;
     ScopedBytesRW bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
@@ -1186,6 +1187,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     memset(&ss, 0, sizeof(ss));
     sockaddr* from = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* fromLength = (javaInetSocketAddress != NULL) ? &sl : 0;
+
 // begin WITH_SAPPHIRE_AGATE
     // TODO: merge policies and set policy on javaBytes
     // TODO: check -1 returns
@@ -1203,6 +1205,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
         }
         r -= res;
     }
+
     unsigned int p_size = (unsigned int) _int_from_byte_array(s);
 
     // TODO: Not all (trusted android) apps that come with the phone run this policy protocol (ex. when I connect to wi-fi) 
@@ -1249,8 +1252,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
     fillInetSocketAddress(env, r / (p_size + 1), javaInetSocketAddress, ss);
     //return recvCount;
-    return r / (p_size + 1);
-// end WITH_SAPPHIRE_AGATE
+    return r;
 }
 
 static void Posix_remove(JNIEnv* env, jobject, jstring javaPath) {
@@ -1294,6 +1296,7 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 // begin WITH_TAINT_TRACKING
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
+	return -1;
 // begin WITH_SAPPHIRE_AGATE
     /* Send policy with each byte */
     int tag = agateJniGetArrayPolicy(env, javaBytes);
