@@ -1177,7 +1177,6 @@ static jint Posix_readv(JNIEnv* env, jobject, jobject javaFd, jobjectArray buffe
 
 
 static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
-	return -1;
     ScopedBytesRW bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
@@ -1193,7 +1192,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     // TODO: check -1 returns
 
     /* Wait until we get the total length of the policy */
-    //ALOGW("[Recvfrom]");
+    //ALOGW("AgateLog: [Recvfrom]");
     jint r = sizeof(int);
     char *s = (char *)malloc(sizeof(int));
     while (r > 0) {
@@ -1252,7 +1251,7 @@ static jint Posix_recvfromBytes(JNIEnv* env, jobject, jobject javaFd, jobject ja
     //jint recvCount = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
     fillInetSocketAddress(env, r / (p_size + 1), javaInetSocketAddress, ss);
     //return recvCount;
-    return r;
+    return r / (p_size + 1);
 }
 
 static void Posix_remove(JNIEnv* env, jobject, jstring javaPath) {
