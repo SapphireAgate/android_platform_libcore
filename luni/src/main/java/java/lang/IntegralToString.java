@@ -214,12 +214,16 @@ public final class IntegralToString {
         if (quickResult != null) {
             if (sb != null) {
 // begin WITH_TAINT_TRACKING
+                if (taint != 0)
+                    System.out.println("AgateLog: [convertInt] adding tag " + taint + " on string"); 
                 Taint.addTaintString(quickResult, taint);
 // end WITH_TAINT_TRACKING
                 sb.append0(quickResult);
                 return null;
             }
 // begin WITH_TAINT_TRACKING
+            if (taint != 0)
+                    System.out.println("AgateLog: [convertInt] adding tag " + taint + " on string"); 
             Taint.addTaintString(quickResult, taint);
 // end WITH_TAINT_TRACKING
             return quickResult;
@@ -258,6 +262,8 @@ public final class IntegralToString {
         } else {
 // begin WITH_TAINT_TRACKING
             String ret = new String(cursor, bufLen - cursor, buf);
+            if (taint != 0)
+                System.out.println("AgateLog: [convertInt] adding tag " + taint + " on string"); 
             Taint.addTaintString(ret, taint);
             return ret;
 // end WITH_TAINT_TRACKING
@@ -345,6 +351,8 @@ public final class IntegralToString {
                 // If -n is still negative, n is Long.MIN_VALUE
                 String quickResult = "-9223372036854775808";
 // begin WITH_TAINT_TRACKING
+                if (taint != 0)
+                    System.out.println("AgateLog: [convertInt] adding tag " + taint + " on string"); 
                 Taint.addTaintString(quickResult, taint);
 // end WITH_TAINT_TRACKING
                 if (sb != null) {
@@ -412,6 +420,8 @@ public final class IntegralToString {
         } else {
 // begin WITH_TAINT_TRACKING
             String ret = new String(cursor, bufLen - cursor, buf);
+            if (taint != 0)
+                System.out.println("AgateLog: [convertInt] adding tag " + taint + " on string"); 
             Taint.addTaintString(ret, taint);
             return ret;
 // end WITH_TAINT_TRACKING
