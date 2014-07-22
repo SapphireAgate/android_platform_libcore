@@ -1296,7 +1296,6 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 // begin WITH_TAINT_TRACKING
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
-	return -1;
 // begin WITH_SAPPHIRE_AGATE
     /* Send policy with each byte */
     int tag = agateJniGetArrayPolicy(env, javaBytes);
