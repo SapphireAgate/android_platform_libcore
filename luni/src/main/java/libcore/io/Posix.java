@@ -45,7 +45,7 @@ public final class Posix implements Os {
 		int taint;
 		int byteCount;
 	}
-	private static final Map<Integer, SocketTaint> socketTaint = new HashMap<Integer, SocketTaint>();
+	private static final Map<Integer, SocketTaint> incomingSocketTaint = new HashMap<Integer, SocketTaint>();
 
 // begin WITH_SAPPHIRE_AGATE
 //   private byte[] toByteArray(int value) {
@@ -301,41 +301,44 @@ public final class Posix implements Os {
     public int recvfrom(FileDescriptor fd, byte[] bytes, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
         // This indirection isn't strictly necessary, but ensures that our public interface is type safe.
         return recvfromBytes(fd, bytes, byteOffset, byteCount, flags, srcAddress);
-//        //begin WITH_SAPPHIRE_AGATE
-//        Taint.log("recvfrom");
-//
-//        /* We assume that the application is run entirely on the trusted runtime
-//           and we send and receive only on the sockets using this interface in Posix.java*/
-//
-//        byte[] buffer = new byte[5 * byteCount];
-//        int r = recvfromBytes(fd, buffer, 0, 5 * byteCount, flags, srcAddress);
-//
-//        if (r <= 0)
-//            return r;
-//
-//        int r2 = 0;
-//        while (r % 5 != 0) {
-//            r2 = recvfromBytes(fd, buffer, r, 5 * byteCount - r, flags, srcAddress);
-//            r += r2;
-//        }
-//
-//        Taint.log("[recvfrom] received no of bytes: " + r);
-//
-//        for (int i = 0; i < r/5; i++) {
-//            int tag = 0;
-//            for (int j = 0; j < 4; j++) {
-//                tag = tag << 8;
-//                tag += buffer[i * 5 + j];
-//            }
-//            bytes[i + byteOffset] = buffer[i * 5 + 4];
-//            Taint.addTaintByteArray(bytes, tag);
-//        }
-//
-//        //return r;
-//        return r/5;
-//        //end WITH_SAPPHIRE_AGATE 
     }
-    private native int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
+
+	/**
+	 * returns taint that should be put on 
+	 */
+	private int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
+		int read = 0;
+		int policy = 0;
+		while(byteCount > 0) {
+			int next = byteCount;
+
+			SocketTaint st = incomingSocketTaint.get(fd.getDescriptor());
+			if(st == null) {
+				long r = recvfromBytesPolicy(fd,flags,srcAddress);
+				int taint = (int)r;
+				int length = (int)(r>>32);
+				if(length < 0)
+					throw new SocketException("Couldn't read whole policy in one try");
+				st = new SocketTaint(taint, length);
+				incomingSocketTaint.put(fd.getDescriptor(), st);
+			}
+			if(st.byteCount < next)
+				next = st.byteCount;
+
+			int r = recvfromBytesImpl(fd, buffer, byteOffset + read, next, flags, srcAddress);
+			if(r == -1)
+				throw new SocketException("Couldn't read whole data chunk at once");
+			policy = dalvik.agate.PolicyManagementModule.mergePolicies(st.taint, policy);
+			st.byteCount -= r;
+			byteCount -=r;
+			if(st.byteCount == 0)
+				incomingSocketTaint.remove(fd.getDescriptor());
+		}
+		Taint.addTaintByteArray((byte[])buffer, policy);
+		return byteCount;
+	}
+    private native int recvfromBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
+	private native long recvfromBytesPolicy(FileDescriptor fd, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
     public native void remove(String path) throws ErrnoException;
     public native void rename(String oldPath, String newPath) throws ErrnoException;
     public native long sendfile(FileDescriptor outFd, FileDescriptor inFd, MutableLong inOffset, long byteCount) throws ErrnoException;
@@ -349,75 +352,51 @@ public final class Posix implements Os {
                 Taint.log("libcore.os.sendto(" + addr + ") received a ByteBuffer with tag " + tstr);
             }
 // end WITH_TAINT_TRACKING
-            return sendtoBytes(fd, buffer, buffer.position(), buffer.remaining(), flags, inetAddress, port);
+            return sendtoBytes(fd, buffer, buffer.position(), buffer.remaining(), flags, inetAddress, port, tag);
         } else {
-            return sendtoBytes(fd, NioUtils.unsafeArray(buffer), NioUtils.unsafeArrayOffset(buffer) + buffer.position(), buffer.remaining(), flags, inetAddress, port);
+			byte[] bytes = NioUtils.unsafeArray(buffer);
+			int tag = dalvik.agate.PolicyManagementModule.getPolicyByteArray(bytes);
+            return sendtoBytes(fd, bytes, NioUtils.unsafeArrayOffset(buffer) + buffer.position(), buffer.remaining(), flags, inetAddress, port, tag);
         }
     }
     public int sendto(FileDescriptor fd, byte[] bytes, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException {
         // This indirection isn't strictly necessary, but ensures that our public interface is type safe.
-        return sendtoBytes(fd, bytes, byteOffset, byteCount, flags, inetAddress, port);
+		int tag = dalvik.agate.PolicyManagementModule.getPolicyByteArray(bytes);
+        return sendtoBytes(fd, bytes, byteOffset, byteCount, flags, inetAddress, port, tag);
     }
 
 // begin WITH_TAINT_TRACKING
     //private native int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException;
-    private native int sendtoBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException;
-    private int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException {
-        if (buffer instanceof byte[]) {
-            int tag = Taint.getTaintByteArray((byte[]) buffer);
-    	    if (tag != Taint.TAINT_CLEAR) {
-                String dstr = new String((byte[]) buffer, byteOffset, ((byteCount > Taint.dataBytesToLog) ? Taint.dataBytesToLog : byteCount));
-                // replace non-printable characters
-                dstr = dstr.replaceAll("\\p{C}", ".");
-                String addr = (fd.hasName) ? fd.name : "unknown";
-    	        String tstr = "0x" + Integer.toHexString(tag);
-                Taint.log("libcore.os.send("+addr+") received data with tag " + tstr + " data=["+dstr+"] ");
- 
-            }
+    private native int sendtoBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port, int taint) throws ErrnoException, SocketException;
+    private int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port, int taint) throws ErrnoException, SocketException {
 
-//            //begin WITH_SAPPHIRE_AGATE
-//
-//            /* Check if policy allows to send */
-//            int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
-//            Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
-//            Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(tag));
-//
-//
-//            if (PolicyManagementModule.canFlow(tag, fd_policy) == false) {
-//                Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(tag) +
-//                                                      " to label = 0x" + Integer.toHexString(fd_policy));
-//                return 0;
-//            }
-//
-//            Taint.log("CAN send over network;");
-//
-//            /* For now, we send the tag together with each byte
-//               Two problems:
-//                   - we send 4 times the information
-//                   - it is very slow
-//            */
-//
-//	    // TODO: Assume byteCount is correct; find a different scheme to
-//            byte[] buffer2 = new byte[5 * byteCount];
-//
-//            for (int i = byteOffset; i < byteOffset + byteCount; i++) {
-//                for (int j = 0; j < 4; j++) {
-//                    buffer2[5 * i + j] = (byte)(tag >>> ((3 - j) * 8));
-//                }
-//                buffer2[5 * i + 4] = ((byte[])buffer)[i];
-//            }
-//
-//	    return sendtoBytesImpl(fd, buffer2, 0, 5 * byteCount, flags, inetAddress, port);
-//            //end WITH_SAPPHIRE_AGATE 
-//
-//        } else {
-//            Taint.log("Called sendtobytes not instance of bytes[]");
-//        }
-//
-//        Taint.log("Called sendtobytes taint clear");
-//        // end WITH_SAPPHIRE_AGATE
+	    if (taint != Taint.TAINT_CLEAR) {
+            String dstr = new String((byte[]) buffer, byteOffset, ((byteCount > Taint.dataBytesToLog) ? Taint.dataBytesToLog : byteCount));
+            // replace non-printable characters
+            dstr = dstr.replaceAll("\\p{C}", ".");
+            String addr = (fd.hasName) ? fd.name : "unknown";
+	        String tstr = "0x" + Integer.toHexString(taint);
+            Taint.log("libcore.os.send("+addr+") received data with tag " + tstr + " data=["+dstr+"] ");
+
         }
-	return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port);
+
+        //begin WITH_SAPPHIRE_AGATE
+
+        /* Check if policy allows to send */
+        int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
+        Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
+        Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(taint));
+
+
+        if (PolicyManagementModule.canFlow(taint, fd_policy) == false) {
+            Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +
+                                                  " to label = 0x" + Integer.toHexString(fd_policy));
+            throw new SocketException("Illegal data flow");
+        }
+
+        Taint.log("CAN send over network;");
+
+		return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port, taint);
     }
 // end WITH_TAINT_TRACKING
 
