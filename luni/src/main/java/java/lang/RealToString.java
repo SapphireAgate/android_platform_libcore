@@ -95,6 +95,7 @@ final class RealToString {
         if (quickResult != null) {
 // begin WITH_TAINT_TRACKING
             if (tag != Taint.TAINT_CLEAR) {
+                System.out.println("AgateLog: [convertDouble] adding tag " + tag + " on string"); 
                 Taint.addTaintString(quickResult, tag);
             }
 // end WITH_TAINT_TRACKING	
@@ -135,6 +136,7 @@ final class RealToString {
 // begin WITH_TAINT_TRACKING
         if (tag != Taint.TAINT_CLEAR) {
             String ts = dst.toString();
+            System.out.println("AgateLog: [convertDouble] adding tag " + tag + " on string"); 
             Taint.addTaintString(ts, tag);
             return (sb != null) ? null : ts;
         } else {
@@ -174,6 +176,7 @@ final class RealToString {
         if (quickResult != null) {
 // begin WITH_TAINT_TRACKING
             if (tag != Taint.TAINT_CLEAR) {
+                System.out.println("AgateLog: [convertDouble] adding tag " + tag + " on string"); 
                 Taint.addTaintString(quickResult, tag);
             }
 // end WITH_TAINT_TRACKING	
@@ -217,6 +220,7 @@ final class RealToString {
 // begin WITH_TAINT_TRACKING
         if (tag != Taint.TAINT_CLEAR) {
             String ts = dst.toString();
+            System.out.println("AgateLog: [convertDouble] adding tag " + tag + " on string"); 
             Taint.addTaintString(ts, tag);
             return (sb != null) ? null : ts;
         } else {

@@ -29,24 +29,43 @@ import java.nio.ByteBuffer;
 public final class Taint {
 
     public static final int TAINT_CLEAR         = 0x00000000;
-    public static int TAINT_LOCATION      = 0;
-    public static int TAINT_CONTACTS      = 0;
-    public static int TAINT_MIC           = 0;
-    public static int TAINT_PHONE_NUMBER  = 0;
-    public static int TAINT_LOCATION_GPS  = 0;
-    public static int TAINT_LOCATION_NET  = 0;
-    public static int TAINT_LOCATION_LAST = 0;
-    public static int TAINT_CAMERA        = 0;
-    public static int TAINT_ACCELEROMETER = 0;
-    public static int TAINT_SMS           = 0;
-    public static int TAINT_IMEI          = 0;
-    public static int TAINT_IMSI          = 0;
-    public static int TAINT_ICCID         = 0;
-    public static int TAINT_DEVICE_SN     = 0;
-    public static int TAINT_ACCOUNT       = 0;
-    public static int TAINT_HISTORY       = 0;
-    
-    // how many bytes of tainted network output data to print to log?
+// begin WITH_SAPPHIRE_AGATE
+    //public static final int TAINT_LOCATION      = 0x00000001;
+    //public static final int TAINT_CONTACTS      = 0x00000002;
+    //public static final int TAINT_MIC           = 0x00000004;
+    //public static final int TAINT_PHONE_NUMBER  = 0x00000008;
+    //public static final int TAINT_LOCATION_GPS  = 0x00000010;
+    //public static final int TAINT_LOCATION_NET  = 0x00000020;
+    //public static final int TAINT_LOCATION_LAST = 0x00000040;
+    //public static final int TAINT_CAMERA        = 0x00000080;
+    //public static final int TAINT_ACCELEROMETER = 0x00000100;
+    //public static final int TAINT_SMS           = 0x00000200;
+    //public static final int TAINT_IMEI          = 0x00000400;
+    //public static final int TAINT_IMSI          = 0x00000800;
+    //public static final int TAINT_ICCID         = 0x00001000;
+    //public static final int TAINT_DEVICE_SN     = 0x00002000;
+    //public static final int TAINT_ACCOUNT       = 0x00004000;
+    //public static final int TAINT_HISTORY       = 0x00008000;
+ 
+    public static final int TAINT_LOCATION      = 0x00000000;
+    public static final int TAINT_CONTACTS      = 0x00000000;
+    public static final int TAINT_MIC           = 0x00000000;
+    public static final int TAINT_PHONE_NUMBER  = 0x00000000;
+    public static final int TAINT_LOCATION_GPS  = 0x00000000;
+    public static final int TAINT_LOCATION_NET  = 0x00000000;
+    public static final int TAINT_LOCATION_LAST = 0x00000000;
+    public static final int TAINT_CAMERA        = 0x00000000;
+    public static final int TAINT_ACCELEROMETER = 0x00000000;
+    public static final int TAINT_SMS           = 0x00000000;
+    public static final int TAINT_IMEI          = 0x00000000;
+    public static final int TAINT_IMSI          = 0x00000000;
+    public static final int TAINT_ICCID         = 0x00000000;
+    public static final int TAINT_DEVICE_SN     = 0x00000000;
+    public static final int TAINT_ACCOUNT       = 0x00000000;
+    public static final int TAINT_HISTORY       = 0x00000000;
+// end WITH_SAPPHIRE_AGATE
+
+   // how many bytes of tainted network output data to print to log?
     public static final int dataBytesToLog = 100;
 
     /**

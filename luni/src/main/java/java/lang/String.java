@@ -1664,6 +1664,8 @@ outer:
         }
         s.hashCode = value;
 // begin WITH_TAINT_TRACKING
+        if (Taint.getTaintChar(value) != 0)
+            System.out.println("AgateLog: [String.java, valueOf] add tag " + Taint.getTaintChar(value) + " on string");
         Taint.addTaintString(s,Taint.getTaintChar(value));
 // end WITH_TAINT_TRACKING
         return s;
@@ -1738,6 +1740,8 @@ outer:
     public static String valueOf(boolean value) {
 // begin WITH_TAINT_TRACKING
         String ret = value ? "true" : "false";
+        if (Taint.getTaintBoolean(value) != 0)
+            System.out.println("AgateLog: [String.java, valueOf] add tag " + Taint.getTaintBoolean(value) + " on string");
         Taint.addTaintString(ret, Taint.getTaintBoolean(value));
         return ret;
 // end WITH_TAINT_TRACKING

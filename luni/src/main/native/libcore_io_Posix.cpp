@@ -1182,9 +1182,8 @@ static jint Posix_readv(JNIEnv* env, jobject, jobject javaFd, jobjectArray buffe
 }
 
 
-static jint Posix_recvfromBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
-
-    ScopedBytesRW bytes(env, javaBytes);
+tatic jint Posix_recvfromBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
+   ScopedBytesRW bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
     }
@@ -1194,7 +1193,7 @@ static jint Posix_recvfromBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobjec
     sockaddr* from = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* fromLength = (javaInetSocketAddress != NULL) ? &sl : 0;
 
-	return NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
+    return NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, bytes.get() + byteOffset, byteCount, flags, from, fromLength);
 }
 
 static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jint flags, jobject javaInetSocketAddress) {
@@ -1273,7 +1272,7 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 // begin WITH_TAINT_TRACKING
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port, jint taint) {
-    ScopedBytesRO bytes(env, javaBytes);
+   ScopedBytesRO bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
     }
