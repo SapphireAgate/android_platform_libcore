@@ -307,35 +307,39 @@ public final class Posix implements Os {
 	 * returns taint that should be put on 
 	 */
 	private int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
-		int read = 0;
-		int policy = 0;
-		while(byteCount > 0) {
-			int next = byteCount;
+		int next = byteCount;
 
-			SocketTaint st = incomingSocketTaint.get(fd.getDescriptor());
-			if(st == null) {
-				long r = recvfromBytesPolicy(fd,flags,srcAddress);
-				int taint = (int)r;
-				int length = (int)(r>>32);
-				if(length < 0)
-					throw new SocketException("Couldn't read whole policy in one try");
-				st = new SocketTaint(taint, length);
-				incomingSocketTaint.put(fd.getDescriptor(), st);
+		SocketTaint st = incomingSocketTaint.get(fd.getDescriptor());
+		if(st == null) {
+			Taint.log("have to read new policy");
+			long r = recvfromBytesPolicy(fd,flags,srcAddress);
+			int taint = (int)r;
+			int length = (int)(r>>32);
+			if(r == -1) {
+				return -1;
+			} else if (r == -2) {
+				throw new SocketException("policy layer left in invalid state");
 			}
-			if(st.byteCount < next)
-				next = st.byteCount;
-
-			int r = recvfromBytesImpl(fd, buffer, byteOffset + read, next, flags, srcAddress);
-			if(r == -1)
-				throw new SocketException("Couldn't read whole data chunk at once");
-			policy = dalvik.agate.PolicyManagementModule.mergePolicies(st.taint, policy);
-			st.byteCount -= r;
-			byteCount -=r;
-			if(st.byteCount == 0)
-				incomingSocketTaint.remove(fd.getDescriptor());
+			st = new SocketTaint(taint, length);
+			incomingSocketTaint.put(fd.getDescriptor(), st);
 		}
-		Taint.addTaintByteArray((byte[])buffer, policy);
-		return byteCount;
+		Taint.log("got policy " + st.taint + " for next " + st.byteCount + " bytes");
+		if(st.byteCount < next)
+			next = st.byteCount;
+
+		int r = recvfromBytesImpl(fd, buffer, byteOffset, next, flags, srcAddress);
+		Taint.log("read " + r + " bytes");
+		if(r == -1)
+			return -1;
+
+		st.byteCount -= r;
+		Taint.log("" + st.byteCount + " bytes remaining with current policy");
+		if(st.byteCount == 0) {
+			Taint.log("removing policy so we get a new one next time");
+			incomingSocketTaint.remove(fd.getDescriptor());
+		}
+		Taint.addTaintByteArray((byte[])buffer, st.taint);
+		return r;
 	}
     private native int recvfromBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
 	private native long recvfromBytesPolicy(FileDescriptor fd, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
@@ -370,23 +374,12 @@ public final class Posix implements Os {
     private native int sendtoBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port, int taint) throws ErrnoException, SocketException;
     private int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port, int taint) throws ErrnoException, SocketException {
 
-	    if (taint != Taint.TAINT_CLEAR) {
-            String dstr = new String((byte[]) buffer, byteOffset, ((byteCount > Taint.dataBytesToLog) ? Taint.dataBytesToLog : byteCount));
-            // replace non-printable characters
-            dstr = dstr.replaceAll("\\p{C}", ".");
-            String addr = (fd.hasName) ? fd.name : "unknown";
-	        String tstr = "0x" + Integer.toHexString(taint);
-            Taint.log("libcore.os.send("+addr+") received data with tag " + tstr + " data=["+dstr+"] ");
-
-        }
-
         //begin WITH_SAPPHIRE_AGATE
 
         /* Check if policy allows to send */
         int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
         Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
         Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(taint));
-
 
         if (PolicyManagementModule.canFlow(taint, fd_policy) == false) {
             Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +

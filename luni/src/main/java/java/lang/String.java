@@ -583,11 +583,6 @@ outer:
     public char charAt(int index) {
 		int stringTaint = Taint.getTaintString(this);
 		int indTaint = Taint.getTaintInt(index);
-		if(stringTaint != 0) {
-			throw new RuntimeException("in char at should not have tainted string");
-		} else if(indTaint != 0) {
-			throw new RuntimeException("in char at should not have tainted index");
-		}
         return Taint.addTaintChar(charAt_intrinsic(index), dalvik.agate.PolicyManagementModule.mergePolicies(stringTaint,indTaint));
     }
 // end WITH_TAINT_TRACKING
