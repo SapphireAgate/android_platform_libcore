@@ -446,7 +446,6 @@ private:
 static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
 //static jobject Posix_acceptImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
 //// end WITH_SAPPHIRE_AGATE
-	ALOGI("starting accept");
     sockaddr_storage ss;
     socklen_t sl = sizeof(ss);
     memset(&ss, 0, sizeof(ss));
@@ -469,11 +468,9 @@ static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaIn
 	long t = Posix_recvfromBytesPolicy(env, NULL, fd, 0, javaInetSocketAddress);
 	if(t < 0) {
 		close(clientFd);
-		ALOGE("failed accept, couldn't read policy");
 		return NULL;
 	}
 	int tag = (int)t;
-ALOGI("got policy, now tainting fd");
     agateJniAddSocketPolicy(env, fd, tag);
 
 	/* send our certificate */
@@ -485,20 +482,12 @@ ALOGI("got policy, now tainting fd");
 	free(p);
 	_add_int(s + p_size, 0);
 
-	ALOGI("sending the policy:");
-	for(unsigned int i = 0; i < p_size + sizeof(int); i++) {
-		ALOGI("%d", s[i]);
-	}
-
 	jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, fd, s, p_size + sizeof(int), 0, peer, *peerLength);
 	free(s);
 	if(r == -1) {
 		close(clientFd);
-		ALOGE("failed accept, couldn't write policy");
 		return NULL;
 	}
-
-	ALOGI("ending accept");
 
 	return fd;
 // end WITH_SAPPHIRE_AGATE
@@ -559,7 +548,6 @@ static void Posix_close(JNIEnv* env, jobject, jobject javaFd) {
 //static void Posix_connect(JNIEnv* env, jobject, jobject javaFd, jobject javaAddress, jint port) {
 static void Posix_connectImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaAddress, jint port) {
 // end WITH_TAINT_TRACKING
-	ALOGI("starting connect");
 	sockaddr_storage ss;
     socklen_t sa_len;
     if (!inetAddressToSockaddr(env, javaAddress, port, ss, sa_len)) {
@@ -581,11 +569,6 @@ static void Posix_connectImpl(JNIEnv* env, jobject, jobject javaFd, jobject java
 	free(p);
 	_add_int(s+p_size,0);
 
-	ALOGI("sending policy %p which contains %d bytes", (void*)tag, p_size);
-	for(unsigned int i = 0; i < p_size + sizeof(int); i++) {
-		ALOGI("%d",s[i]);
-	}
-
 	jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, s, p_size + sizeof(int), 0, sa, sa_len);
 	free(s);
 	if(r == -1) {
@@ -603,7 +586,6 @@ static void Posix_connectImpl(JNIEnv* env, jobject, jobject javaFd, jobject java
 	}
 	tag = (int)t;
     agateJniAddSocketPolicy(env, javaFd, tag);
-	ALOGI("finished connect");
 // end WITH_SAPPHIRE_AGATE
 }
 
@@ -1228,7 +1210,6 @@ static jint Posix_readv(JNIEnv* env, jobject, jobject javaFd, jobjectArray buffe
 
 
 static jint Posix_recvfromBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetSocketAddress) {
-	ALOGI("starting recvfromBytesImple");
    ScopedBytesRW bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
@@ -1244,7 +1225,6 @@ static jint Posix_recvfromBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobjec
 
 static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jint flags, jobject javaInetSocketAddress) {
 
-	ALOGI("starting recvfromBytesPolicy");
 	sockaddr_storage ss;
     socklen_t sl = sizeof(ss);
     memset(&ss, 0, sizeof(ss));
@@ -1255,12 +1235,9 @@ static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jin
 	char buffer[sizeof(int)];
 	jint r = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer, sizeof(int), flags, from, fromLength);
 	if(r != sizeof(int)) {
-		ALOGE("failed recvfromBytesPolicy, failed to read policy length %d",errno);
 		return -1;
 	}
 	p_length = _int_from_byte_array(buffer);
-
-	ALOGI("got policy length %d",p_length);
 
 	int p;
 	if(p_length == 0) {
@@ -1271,12 +1248,11 @@ static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jin
 		char* policy = (char*)malloc(p_length);
 		r = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, policy, p_length, flags, from, fromLength);
 		if(r != p_length) {
-			free(policy);
 			ALOGE("failed recvfromBytesPolicy, didn't read policy in one try read %d of %d, with error %d", r, p_length, errno);
-			ALOGE("%d", p_length);
 			for(int i = 0; i < r; i++) {
-				ALOGE("%c",policy[i]);
+				ALOGE("%d",policy[i]);
 			}
+			free(policy);
 			return -2;
 		}
 		p = agateJniDecodePolicy(env, policy);
@@ -1286,15 +1262,12 @@ static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jin
 	int byteCount;
 	r = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer, sizeof(int), flags, from, fromLength);
 	if(r != sizeof(int)) {
-		ALOGE("failed recvfromBytesPolicy, failed to read bytecount %d", errno);
+		ALOGE("failed recvfromBytesPolicy, failed to read bytecount errno:%d", errno);
 		return -2;
 	}
 	byteCount = _int_from_byte_array(buffer);
 
-	ALOGI("for next %d bytes",byteCount);
-
 	uint64_t out = p | (((uint64_t)byteCount) << 32);
-	ALOGI("successfully received policy %d for the next %d bytes", p, byteCount);
 	return out;
 }
 
@@ -1339,7 +1312,6 @@ static jlong Posix_sendfile(JNIEnv* env, jobject, jobject javaOutFd, jobject jav
 // begin WITH_TAINT_TRACKING
 //static jint Posix_sendtoBytes(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port) {
 static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaBytes, jint byteOffset, jint byteCount, jint flags, jobject javaInetAddress, jint port, jint taint) {
-	ALOGI("starting sendtoBytesImpl");
    ScopedBytesRO bytes(env, javaBytes);
     if (bytes.get() == NULL) {
         return -1;
@@ -1362,16 +1334,11 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
 	_add_int(s+p_size,byteCount);
 	memcpy(s + p_size + sizeof(int), bytes.get() + byteOffset, byteCount);
 	free(p);
-	ALOGI("sending the following bytes %d policy, %d message", p_size, byteCount);
-	for(unsigned int i = 0; i < p_size + sizeof(int) + byteCount; i++) {
-		ALOGI("%d",s[i]);
-	}
 
 	jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, s, p_size + sizeof(int) + byteCount, flags, to, sa_len);
 
 	free(s);
 
-	ALOGI("finishing sendtoBytesImpl successfully");
     return r - (p_size + sizeof(int));
 // end WITH_SAPPHIRE_AGATE
 }

@@ -311,7 +311,6 @@ public final class Posix implements Os {
 
 		SocketTaint st = incomingSocketTaint.get(fd.getDescriptor());
 		if(st == null) {
-			Taint.log("have to read new policy");
 			long r = recvfromBytesPolicy(fd,flags,srcAddress);
 			int taint = (int)r;
 			int length = (int)(r>>32);
@@ -323,19 +322,15 @@ public final class Posix implements Os {
 			st = new SocketTaint(taint, length);
 			incomingSocketTaint.put(fd.getDescriptor(), st);
 		}
-		Taint.log("got policy " + st.taint + " for next " + st.byteCount + " bytes");
 		if(st.byteCount < next)
 			next = st.byteCount;
 
 		int r = recvfromBytesImpl(fd, buffer, byteOffset, next, flags, srcAddress);
-		Taint.log("read " + r + " bytes");
 		if(r == -1)
 			return -1;
 
 		st.byteCount -= r;
-		Taint.log("" + st.byteCount + " bytes remaining with current policy");
 		if(st.byteCount == 0) {
-			Taint.log("removing policy so we get a new one next time");
 			incomingSocketTaint.remove(fd.getDescriptor());
 		}
 		Taint.addTaintByteArray((byte[])buffer, st.taint);
@@ -350,11 +345,6 @@ public final class Posix implements Os {
         if (buffer.isDirect()) {
 // begin WITH_TAINT_TRACKING
             int tag = buffer.getDirectByteBufferTaint();
-            if (tag != Taint.TAINT_CLEAR) {
-                String addr = (fd.hasName) ? fd.name : "unknown";
-                String tstr = "0x" + Integer.toHexString(tag);
-                Taint.log("libcore.os.sendto(" + addr + ") received a ByteBuffer with tag " + tstr);
-            }
 // end WITH_TAINT_TRACKING
             return sendtoBytes(fd, buffer, buffer.position(), buffer.remaining(), flags, inetAddress, port, tag);
         } else {
@@ -378,16 +368,12 @@ public final class Posix implements Os {
 
         /* Check if policy allows to send */
         int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
-        Taint.log("Policy on fd socket = 0x" + Integer.toHexString(fd_policy));
-        Taint.log("sendtobytes with tag = 0x" + Integer.toHexString(taint));
 
         if (PolicyManagementModule.canFlow(taint, fd_policy) == false) {
             Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +
                                                   " to label = 0x" + Integer.toHexString(fd_policy));
             throw new SocketException("Illegal data flow");
         }
-
-        Taint.log("CAN send over network;");
 
 		return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port, taint);
     }
