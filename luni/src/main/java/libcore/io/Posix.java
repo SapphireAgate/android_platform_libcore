@@ -29,23 +29,25 @@ import libcore.util.MutableLong;
 
 // begin WITH_TAINT_TRACKING
 import dalvik.system.Taint;
+// end WITH_TAINT_TRACKING
+
+// begin WITH_SAPPHIRE_AGATE
 import dalvik.agate.UserManagementModule;
 import dalvik.agate.PolicyManagementModule;
-// end WITH_TAINT_TRACKING
-// end WITH_TAINT_TRACKING
+// end WITH_SAPPHIRE_AGATE
 
 public final class Posix implements Os {
     Posix() { }
-	private static class SocketTaint {
-		public SocketTaint(int taint, int byteCount) {
-			this.taint = taint;
-			this.byteCount = byteCount;
-		}
+    private static class SocketPolicy {
+        public SocketPolicy(int tag, int byteCount) {
+            this.tag = tag;
+            this.byteCount = byteCount;
+        }
 
-		int taint;
-		int byteCount;
-	}
-	private static final Map<Integer, SocketTaint> incomingSocketTaint = new HashMap<Integer, SocketTaint>();
+        int tag;
+        int byteCount;
+    }
+    private static final Map<Integer, SocketPolicy> incomingSocketPolicy = new HashMap<Integer, SocketPolicy>();
 
 // begin WITH_SAPPHIRE_AGATE
 //   private byte[] toByteArray(int value) {
@@ -68,31 +70,19 @@ public final class Posix implements Os {
 
 // begin WITH_SAPPHIRE_AGATE
     public native FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
-//    public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
-//    public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
-//        byte[] buf = new byte[4];
-//        FileDescriptor fs = acceptImpl(fd, peerAddress);
-//
-//        // First, get the ID from the other trusted runtime
-//        int r = recvfrom(fs, buf, 0, 4, 0, null);
-//        int id = fromByteArray(buf);
-//
-//        Taint.log("[accept] userId = " + id);
-//        int fsInt = fs.getDescriptor();
-//        PolicyManagementModule.logPathFromFd(fsInt);
-//
-//        // Taint the filedescriptor
-//        // TODO: This is hard-coded for now
-//        String[] readers = {"u1"};
-//        PolicyManagementModule.addPolicySocket(fsInt, readers, null);
-//
-//        int fdInt = fs.getDescriptor();  
-//        Taint.log("[accept] set policy on file descriptor = 0x" + Integer.toHexString(PolicyManagementModule.getPolicySocket(fdInt)));
-//
-//        return fs;
-//    }
+    //public native FileDescriptor acceptImpl(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException;
+    //public FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress) throws ErrnoException, SocketException {
+    //    FileDescriptor r_fd = acceptImpl(fd, peerAddress);
+        //System.out.println("AgateLog: [acceptImpl] begin: " + fd);
+        //if (peerAddress != null && peerAddress.getAddress() != null) {
+        //    String addr = peerAddress.getAddress().getHostAddress();
+        //    System.out.println("AgateLog: [Posix_accept] Connect from: " + addr);
+        //} else
+        //    System.out.println("AgateLog: [Posix_accept] peer address null");
+        //System.out.println("AgateLog: [acceptImpl] end: " + fd);
+        //return r_fd;
+    //}
 // end WITH_SAPPHIRE_AGATE
-
     public native boolean access(String path, int mode) throws ErrnoException;
     public native void bind(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException;
     public native void chmod(String path, int mode) throws ErrnoException;
@@ -103,6 +93,7 @@ public final class Posix implements Os {
     public native void connectImpl(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException;
     public void connect(FileDescriptor fd, InetAddress address, int port) throws ErrnoException, SocketException {
         String addr = address.getHostAddress();
+        System.out.println("AgateLog: [Posix_connect] Connecting to: " + addr);
         if (addr != null) {
              fd.hasName = true;
              fd.name = addr;
@@ -214,8 +205,10 @@ public final class Posix implements Os {
     public int pwrite(FileDescriptor fd, ByteBuffer buffer, long offset) throws ErrnoException {
         if (buffer.isDirect()) {
 // begin WITH_TAINT_TRACKING
-            int tag = buffer.getDirectByteBufferTaint();
-            if (tag != Taint.TAINT_CLEAR) {
+// begin WITH_SAPPHIRE_AGATE
+            int tag = buffer.getPolicy();
+            if (tag != 0) {
+// end WITH_SAPPHIRE_AGATE
                 int fdInt = fd.getDescriptor();
                 Taint.logPathFromFd(fdInt);
                 String tstr = "0x" + Integer.toHexString(tag);
@@ -303,59 +296,71 @@ public final class Posix implements Os {
         return recvfromBytes(fd, bytes, byteOffset, byteCount, flags, srcAddress);
     }
 
-	/**
-	 * returns taint that should be put on 
-	 */
-	private int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
-		int next = byteCount;
+    /**
+     * returns taint that should be put on 
+     */
+    private int recvfromBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException {
+        int next = byteCount;
+        SocketPolicy st = null;
+        synchronized(this) {
+            st = incomingSocketPolicy.get(fd.getDescriptor());
+        }
+        if(st == null) {
+            long r = recvfromBytesPolicy(fd, flags, srcAddress);
+            int tag = (int)r;
+            int length = (int)(r>>32);
+            if (r == -1) {
+                return -1;
+            } else if (r == -2) {
+                System.out.println("AgateLog: [recvfromBytes] Policy layer left in invalid state");
+                throw new SocketException("AgateLog: [recvfromBytes] Policy layer left in invalid state");
+            }
+            st = new SocketPolicy(tag, length);
+            synchronized(this) {
+                incomingSocketPolicy.put(fd.getDescriptor(), st);
+            }
+        }
 
-		SocketTaint st = incomingSocketTaint.get(fd.getDescriptor());
-		if(st == null) {
-			long r = recvfromBytesPolicy(fd,flags,srcAddress);
-			int taint = (int)r;
-			int length = (int)(r>>32);
-			if(r == -1) {
-				return -1;
-			} else if (r == -2) {
-				throw new SocketException("policy layer left in invalid state");
-			}
-			st = new SocketTaint(taint, length);
-			incomingSocketTaint.put(fd.getDescriptor(), st);
-		}
-		if(st.byteCount < next)
-			next = st.byteCount;
+        if(st.byteCount < next)
+            next = st.byteCount;
 
-		int r = recvfromBytesImpl(fd, buffer, byteOffset, next, flags, srcAddress);
-		if(r == -1)
-			return -1;
+        int r = recvfromBytesImpl(fd, buffer, byteOffset, next, flags, srcAddress);
+        if (r == -1) {
+            System.out.println("AgateLog: [recvfromBytes] Could not receive bytes");
+            return -1;
+        }
 
-		st.byteCount -= r;
-		if(st.byteCount == 0) {
-			incomingSocketTaint.remove(fd.getDescriptor());
-		}
-		Taint.addTaintByteArray((byte[])buffer, st.taint);
-		return r;
-	}
+        st.byteCount -= r;
+        if(st.byteCount == 0) {
+            incomingSocketPolicy.remove(fd.getDescriptor());
+        }
+
+        if (st.tag != 0)
+            PolicyManagementModule.addPolicyByteArray((byte[])buffer, st.tag);
+
+        return r;
+    }
+
     private native int recvfromBytesImpl(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
-	private native long recvfromBytesPolicy(FileDescriptor fd, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
+    private native long recvfromBytesPolicy(FileDescriptor fd, int flags, InetSocketAddress srcAddress) throws ErrnoException, SocketException;
     public native void remove(String path) throws ErrnoException;
     public native void rename(String oldPath, String newPath) throws ErrnoException;
     public native long sendfile(FileDescriptor outFd, FileDescriptor inFd, MutableLong inOffset, long byteCount) throws ErrnoException;
     public int sendto(FileDescriptor fd, ByteBuffer buffer, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException {
         if (buffer.isDirect()) {
-// begin WITH_TAINT_TRACKING
-            int tag = buffer.getDirectByteBufferTaint();
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+            int tag = buffer.getPolicy();
             return sendtoBytes(fd, buffer, buffer.position(), buffer.remaining(), flags, inetAddress, port, tag);
         } else {
-			byte[] bytes = NioUtils.unsafeArray(buffer);
-			int tag = dalvik.agate.PolicyManagementModule.getPolicyByteArray(bytes);
+            byte[] bytes = NioUtils.unsafeArray(buffer);
+            int tag = dalvik.agate.PolicyManagementModule.getPolicyByteArray(bytes);
             return sendtoBytes(fd, bytes, NioUtils.unsafeArrayOffset(buffer) + buffer.position(), buffer.remaining(), flags, inetAddress, port, tag);
         }
+// end WITH_SAPPHIRE_AGATE
     }
     public int sendto(FileDescriptor fd, byte[] bytes, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port) throws ErrnoException, SocketException {
         // This indirection isn't strictly necessary, but ensures that our public interface is type safe.
-		int tag = dalvik.agate.PolicyManagementModule.getPolicyByteArray(bytes);
+        int tag = dalvik.agate.PolicyManagementModule.getPolicyByteArray(bytes);
         return sendtoBytes(fd, bytes, byteOffset, byteCount, flags, inetAddress, port, tag);
     }
 
@@ -365,17 +370,17 @@ public final class Posix implements Os {
     private int sendtoBytes(FileDescriptor fd, Object buffer, int byteOffset, int byteCount, int flags, InetAddress inetAddress, int port, int taint) throws ErrnoException, SocketException {
 
         //begin WITH_SAPPHIRE_AGATE
+        System.out.println("AgateLog: Sending bytes to fd = " + fd.getDescriptor());
 
         /* Check if policy allows to send */
         int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
 
         if (PolicyManagementModule.canFlow(taint, fd_policy) == false) {
-            Taint.log("Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +
+            Taint.log("AgateLog: Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +
                                                   " to label = 0x" + Integer.toHexString(fd_policy));
-            throw new SocketException("Illegal data flow");
+            throw new SocketException("AgateLog: Illegal data flow");
         }
-
-		return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port, taint);
+        return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port, taint);
     }
 // end WITH_TAINT_TRACKING
 
@@ -416,8 +421,10 @@ public final class Posix implements Os {
     public int write(FileDescriptor fd, ByteBuffer buffer) throws ErrnoException {
         if (buffer.isDirect()) {
 // begin WITH_TAINT_TRACKING
-            int tag = buffer.getDirectByteBufferTaint();
-            if (tag != Taint.TAINT_CLEAR) {
+// begin WITH_SAPPHIRE_AGATE
+            int tag = buffer.getPolicy();
+            if (tag != 0) {
+// end WITH_SAPPHIRE_AGATE
                 int fdInt = fd.getDescriptor();
                 Taint.logPathFromFd(fdInt);
                 String tstr = "0x" + Integer.toHexString(tag);

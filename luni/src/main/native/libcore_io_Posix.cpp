@@ -59,6 +59,7 @@
         jstring NAME = env->NewStringUTF(EXP); \
         if (NAME == NULL) return NULL;
 
+// begin WITH_SAPPHIRE_AGATE
 #define CERT_SIZE sizeof(int)
 
 static char* _int_to_byte_array(char* dest, int value) {
@@ -80,13 +81,7 @@ static int _int_from_byte_array(char* bytes) {
 static char* _add_int(char* dest, int val) {
     return _int_to_byte_array(dest, val);
 }
-
-//static char* _get_int(char* dest, int* val) {
-//    *val = _int_from_byte_array(dest);
-//    return dest + sizeof(int);
-//}
-
-static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jint flags, jobject javaInetSocketAddress);
+// end WITH_SAPPHIRE_AGATE
 
 struct addrinfo_deleter {
     void operator()(addrinfo* p) const {
@@ -123,25 +118,7 @@ struct addrinfo_deleter {
         } \
     } while (_rc == -1); \
     _rc; })
-/*
-// begin WITH_SAPPHIRE_AGATE
-static int _int_from_byte_array(char* bytes) {
-    int value = 0;
-    for (unsigned int i = 0; i < sizeof(int); i++) {
-        value = value << 8;
-        value |= bytes[i] & 0xff;
-    }
-    return value;
-}
 
-static char* _int_to_byte_array(char* s, int value) {
-    for (unsigned int i = 0; i < sizeof(int); i++) {
-        *(s + i) = (char)((value >> ((sizeof(int) - i - 1) * 8)) & 0xff);
-    }
-    return s + sizeof(int);
-}
-// end WITH_SAPPHIRE_AGATE
-*/
 static void throwException(JNIEnv* env, jclass exceptionClass, jmethodID ctor3, jmethodID ctor2,
         const char* functionName, int error) {
     jthrowable cause = NULL;
@@ -442,9 +419,58 @@ private:
     struct passwd* mResult;
 };
 
+// begin WITH_SAPPHIRE_AGATE
+static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jint flags, jobject javaInetSocketAddress);
+
+/* Receive Agate certificate - for now is the ID encoded as a policy */
+static int _receive_certificate(JNIEnv* env, jobject fd, jobject javaInetSocketAddress) {
+    jlong t = Posix_recvfromBytesPolicy(env, NULL, fd, 0, javaInetSocketAddress);
+    if (t < 0) {
+        return -1;
+    }
+
+    int tag = (int)t;
+    if (tag != 0)
+        agateJniAddSocketPolicy(env, fd, tag);
+
+    ALOGW("AgateLog: [_receive_certificate] Received the certificate");
+    return 0;
+}
+
+/* Send Agate certificate - for now is the ID encoded as a policy */
+static int _send_certificate(JNIEnv* env, jobject fd, sockaddr* peer, socklen_t peerLength) {
+    int p_size = 0;
+
+    /* Encode our certificate (for now an ID as a policy) */
+    int tag = agateJniGetCurrentProcessPolicy(env);
+    char* p = agateJniEncodePolicy(env, &p_size, tag);
+    char* s = (char*)malloc(p_size + sizeof(int));
+    memcpy(s, p, p_size);
+    free(p);
+    _add_int(s + p_size, 0);
+
+    /* Send certificate */
+    jint r = p_size + sizeof(int);
+    jint res;
+
+    while (r > 0) {
+        res = NET_FAILURE_RETRY(env, ssize_t, sendto, fd, s + p_size + sizeof(int) - r, r, 0, peer, peerLength);
+        if (res == -1) {
+            ALOGE("AgateLog: [_send_certificate] Failure sending the certificate: %d", errno);
+            free(s);
+            return -1;
+        }
+        r -= res;
+    }
+    free(s);
+    ALOGW("AgateLog: [_send_certificate] Sent our certificate; p_size = %d", p_size);
+    return 0;
+}
+// end WITH_SAPPHIRE_AGATE
+
 //// begin WITH_SAPPHIRE_AGATE
-static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
 //static jobject Posix_acceptImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
+static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaInetSocketAddress) {
 //// end WITH_SAPPHIRE_AGATE
     sockaddr_storage ss;
     socklen_t sl = sizeof(ss);
@@ -452,44 +478,29 @@ static jobject Posix_accept(JNIEnv* env, jobject, jobject javaFd, jobject javaIn
     sockaddr* peer = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* peerLength = (javaInetSocketAddress != NULL) ? &sl : 0;
     jint clientFd = NET_FAILURE_RETRY(env, int, accept, javaFd, peer, peerLength);
+    //ALOGW("AgateLog: [Posix_accept] before: %d", clientFd);
     if (clientFd == -1 || !fillInetSocketAddress(env, clientFd, javaInetSocketAddress, ss)) {
         close(clientFd);
         return NULL;
     }
-
+    //ALOGW("AgateLog: [Posix_accept] begin: %d", clientFd);
 // begin WITH_SAPPHIRE_AGATE
     /* Receive and then send the unforgeable (TODO) identity from/to the connecting client */
-    if (clientFd == -1)
-        return NULL;
-
     jobject fd = jniCreateFileDescriptor(env, clientFd);
 
-	/* receive the certificate */
-	long t = Posix_recvfromBytesPolicy(env, NULL, fd, 0, javaInetSocketAddress);
-	if(t < 0) {
-		close(clientFd);
-		return NULL;
-	}
-	int tag = (int)t;
-    agateJniAddSocketPolicy(env, fd, tag);
+    /* receive the certificate */
+    if (_receive_certificate(env, fd, javaInetSocketAddress) < 0) {
+        close(clientFd);
+        return NULL;
+    }
 
-	/* send our certificate */
-    int p_size = 0;
-	tag = agateJniGetCurrentProcessPolicy(env);
-    char* p = agateJniEncodePolicy(env, &p_size, tag);
-	char* s = (char*)malloc(p_size + sizeof(int));
-	memcpy(s, p, p_size);
-	free(p);
-	_add_int(s + p_size, 0);
-
-	jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, fd, s, p_size + sizeof(int), 0, peer, *peerLength);
-	free(s);
-	if(r == -1) {
-		close(clientFd);
-		return NULL;
-	}
-
-	return fd;
+    /* send our certificate */
+    if (_send_certificate(env, fd, peer, *peerLength) < 0) {
+        close(clientFd);
+        return NULL;
+    }
+    //ALOGW("AgateLog: [Posix_accept] end: %d", clientFd);
+    return fd;
 // end WITH_SAPPHIRE_AGATE
 }
 
@@ -538,6 +549,11 @@ static void Posix_close(JNIEnv* env, jobject, jobject javaFd) {
     int fd = jniGetFDFromFileDescriptor(env, javaFd);
     jniSetFileDescriptorOfFD(env, javaFd, -1);
 
+// begin WITH_SAPPHIRE_AGATE
+    // TODO: how to test if this is a socket?
+    //agateJniRemoveSocketPolicy(env, fd); 
+// end WITH_SAPPHIRE_AGATE
+
     // Even if close(2) fails with EINTR, the fd will have been closed.
     // Using TEMP_FAILURE_RETRY will either lead to EBADF or closing someone else's fd.
     // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html
@@ -547,45 +563,31 @@ static void Posix_close(JNIEnv* env, jobject, jobject javaFd) {
 // begin WITH_TAINT_TRACKING
 //static void Posix_connect(JNIEnv* env, jobject, jobject javaFd, jobject javaAddress, jint port) {
 static void Posix_connectImpl(JNIEnv* env, jobject, jobject javaFd, jobject javaAddress, jint port) {
+    //ALOGW("AgateLog: [Posix_connect]");
 // end WITH_TAINT_TRACKING
-	sockaddr_storage ss;
+    sockaddr_storage ss;
     socklen_t sa_len;
     if (!inetAddressToSockaddr(env, javaAddress, port, ss, sa_len)) {
         return;
     }
-    const sockaddr* sa = reinterpret_cast<const sockaddr*>(&ss);
+    sockaddr* sa = reinterpret_cast<sockaddr*>(&ss);
     // We don't need the return value because we'll already have thrown.
     (void) NET_FAILURE_RETRY(env, int, connect, javaFd, sa, sa_len);
 
 // begin WITH_SAPPHIRE_AGATE
     /* Receive and then send the unforgeable (TODO) identity from/to the connecting client */
 
-	/* send our certificate */
-    int p_size = 0;
-	int tag = agateJniGetCurrentProcessPolicy(env);
-    char* p = agateJniEncodePolicy(env, &p_size, tag);
-	char* s = (char*)malloc(p_size + sizeof(int));
-	memcpy(s, p, p_size);
-	free(p);
-	_add_int(s+p_size,0);
+    /* send our certificate */
+    if (_send_certificate(env, javaFd, sa, sa_len) < 0) {
+        //TODO: fail somehow
+        return;
+    }
 
-	jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, s, p_size + sizeof(int), 0, sa, sa_len);
-	free(s);
-	if(r == -1) {
-		ALOGE("failed to connect, couldn't send policy %d", errno);
-		//TODO: fail somehow
-		return;
-	}
-
-	/* receive the certificate */
-	long t = Posix_recvfromBytesPolicy(env, NULL, javaFd, 0, javaAddress);
-	if(t < 0) {
-		ALOGE("failed to connect, didn't recieve policy %d", errno);
-		//TODO: fail somehow
-		return;
-	}
-	tag = (int)t;
-    agateJniAddSocketPolicy(env, javaFd, tag);
+    /* receive the certificate */
+    if (_receive_certificate(env, javaFd, javaAddress) < 0) {
+        //TODO: fail somehow
+        return;
+    }
 // end WITH_SAPPHIRE_AGATE
 }
 
@@ -1225,50 +1227,69 @@ static jint Posix_recvfromBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobjec
 
 static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jint flags, jobject javaInetSocketAddress) {
 
-	sockaddr_storage ss;
+    sockaddr_storage ss;
     socklen_t sl = sizeof(ss);
     memset(&ss, 0, sizeof(ss));
     sockaddr* from = (javaInetSocketAddress != NULL) ? reinterpret_cast<sockaddr*>(&ss) : NULL;
     socklen_t* fromLength = (javaInetSocketAddress != NULL) ? &sl : 0;
-	
-	int p_length;
-	char buffer[sizeof(int)];
-	jint r = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer, sizeof(int), flags, from, fromLength);
-	if(r != sizeof(int)) {
-		return -1;
-	}
-	p_length = _int_from_byte_array(buffer);
 
-	int p;
-	if(p_length == 0) {
-		//no policy on incoming data
-		p = 0;
-	} else {
-		p_length -= sizeof(int); //we already read an int
-		char* policy = (char*)malloc(p_length);
-		r = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, policy, p_length, flags, from, fromLength);
-		if(r != p_length) {
-			ALOGE("failed recvfromBytesPolicy, didn't read policy in one try read %d of %d, with error %d", r, p_length, errno);
-			for(int i = 0; i < r; i++) {
-				ALOGE("%d",policy[i]);
-			}
-			free(policy);
-			return -2;
-		}
-		p = agateJniDecodePolicy(env, policy);
-		free(policy);
-	}
+    int p_length;
+    char buffer[sizeof(int)];
+    jint r = sizeof(int);
+    jint res;
 
-	int byteCount;
-	r = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer, sizeof(int), flags, from, fromLength);
-	if(r != sizeof(int)) {
-		ALOGE("failed recvfromBytesPolicy, failed to read bytecount errno:%d", errno);
-		return -2;
-	}
-	byteCount = _int_from_byte_array(buffer);
+    // get the policy size (in bytes)
+    while (r > 0) {
+        res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer + sizeof(int) - r, r, flags, from, fromLength);
+        if (res == -1) {
+            ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Failure getting the policy size: %d", errno);
+            return -2;
+        }
+        r -= res;
+    }
+    p_length = _int_from_byte_array(buffer);
 
-	uint64_t out = p | (((uint64_t)byteCount) << 32);
-	return out;
+    // get the policy
+    int p;
+    if (p_length == 0) {
+        //no policy on incoming data
+        p = 0;
+    } else {
+        //ALOGW("AgateLog: [recvfromBytesPolicy] Received (data with) non-null policy (on it), size = %d", p_length);
+        char* policy = (char*)malloc(p_length);
+        r = p_length;
+        while (r > 0) {
+            res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, policy + p_length - r, r, flags, from, fromLength);
+            if (res == -1) {
+                ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Failure receiving the policy: %d", errno);
+                free(policy);
+                return -2;
+            }
+            r -= res;
+        }
+
+        p = agateJniDecodePolicy(env, policy);
+        free(policy);
+    }
+
+    // get the number of bytes in the message
+    int byteCount;
+    r = sizeof(int);
+    while (r > 0) {
+        res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer + sizeof(int) - r, r, flags, from, fromLength);
+        if (res == -1) {
+            ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Failure receiving bytes count: %d", errno);
+            return -2;
+        }
+        r -= res;
+    }
+
+    byteCount = _int_from_byte_array(buffer);
+
+    //ALOGW("AgateLog: [Posix_recvfromBytesPolicy] Received bytes count: %d", byteCount);
+
+    jlong out = (((jlong)p) & 0xffffffff) | (((jlong)byteCount & 0xffffffff) << 32);
+    return out;
 }
 
 static void Posix_remove(JNIEnv* env, jobject, jstring javaPath) {
@@ -1328,18 +1349,31 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
     /* Send policy at start of packet */
     int p_size = 0;
     char* p = agateJniEncodePolicy(env, &p_size, taint);
-	char* s = (char*)malloc(p_size + sizeof(int) + byteCount);
+    char* s = (char*)malloc(p_size + sizeof(int) + byteCount);
 
-	memcpy(s, p, p_size);
-	_add_int(s+p_size,byteCount);
-	memcpy(s + p_size + sizeof(int), bytes.get() + byteOffset, byteCount);
-	free(p);
+    memcpy(s, p, p_size);
+    _add_int(s + p_size, byteCount);
+    memcpy(s + p_size + sizeof(int), bytes.get() + byteOffset, byteCount);
+    free(p);
 
-	jint r = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, s, p_size + sizeof(int) + byteCount, flags, to, sa_len);
+    // make sure we at least sent the policy
+    jint r = p_size + sizeof(int) + byteCount;
+    jint res;
 
-	free(s);
+    while (r > byteCount) {
+        res = NET_FAILURE_RETRY(env, ssize_t, sendto, javaFd, s + p_size + sizeof(int) + byteCount - r, r, flags, to, sa_len);
+        if (res == -1) {
+            ALOGE("AgateLog: [Posix_sendtoBytesImpl] Failure sending bytes and policy: %d; on fd = %d", errno, jniGetFDFromFileDescriptor(env, javaFd));
+            free(s);
+            return -1;
+        }
+        r -= res;
+    }
 
-    return r - (p_size + sizeof(int));
+    free(s);
+
+    ALOGW("AgateLog: [Posix_sendtoBytes] Sent bytes: %d", byteCount - r);
+    return byteCount - r;
 // end WITH_SAPPHIRE_AGATE
 }
 

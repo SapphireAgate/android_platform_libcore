@@ -26,11 +26,16 @@ import libcore.io.Libcore;
 import libcore.io.Memory;
 import static libcore.io.OsConstants.*;
 
-// begin WITH_TAINT_TRACKING
-import dalvik.system.Taint;
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+import dalvik.agate.AgatePolicy;
+// end WITH_SAPPHIRE_AGATE
 
 class MemoryBlock {
+// begin WITH_SAPPHIRE_AGATE
+    protected AgatePolicy p;
+// end WITH_SAPPHIRE_AGATE
+
     /**
      * Handles calling munmap(2) on a memory-mapped region.
      */
@@ -80,13 +85,13 @@ class MemoryBlock {
             array = null;
             address = 0;
         }
-
-// begin WITH_TAINT_TRACKING
-        @Override public void addTaint(int newTaint) {
-            super.addTaint(newTaint);
-            Taint.addTaintByteArray(array, newTaint);
+   
+// begin WITH_SAPPHIRE_AGATE
+        @Override public void addPolicy(int tag) {
+            super.addPolicy(tag);
+            PolicyManagementModule.addPolicyByteArray(array, tag);
         }
-// end WITH_TAINT_TRACKING
+// end WITH_SAPPHIRE_AGATE
     }
 
     /**
@@ -101,12 +106,7 @@ class MemoryBlock {
 
     protected long address;
     protected final long size;
-// begin WITH_TAINT_TRACKING
-    protected int taint;
-    public void addTaint(int newTaint) {
-        taint = dalvik.agate.PolicyManagementModule.mergePolicies(taint, newTaint);
-    }
-// end WITH_TAINT_TRACKING
+
 
     public static MemoryBlock mmap(FileDescriptor fd, long offset, long size, MapMode mapMode) throws IOException {
         if (size == 0) {
@@ -151,9 +151,9 @@ class MemoryBlock {
     private MemoryBlock(long address, long size) {
         this.address = address;
         this.size = size;
-// begin WITH_TAINT_TRACKING
-        this.taint = Taint.TAINT_CLEAR;
-// end WITH_TAINT_TRACKING
+        // begin WITH_SAPPHIRE_AGATE
+        p = new AgatePolicy();
+        // end WITH_SAPPHIRE_AGATE
     }
 
     // Used to support array/arrayOffset/hasArray for direct buffers.
@@ -165,161 +165,161 @@ class MemoryBlock {
     }
 
     public final void pokeByte(int offset, byte value) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintByte(value));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyByte(value));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeByte(address + offset, value);
     }
 
     public final void pokeByteArray(int offset, byte[] src, int srcOffset, int byteCount) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintByteArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyByteArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeByteArray(address + offset, src, srcOffset, byteCount);
     }
 
     public final void pokeCharArray(int offset, char[] src, int srcOffset, int charCount, boolean swap) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintCharArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyCharArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeCharArray(address + offset, src, srcOffset, charCount, swap);
     }
 
     public final void pokeDoubleArray(int offset, double[] src, int srcOffset, int doubleCount, boolean swap) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintDoubleArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyDoubleArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeDoubleArray(address + offset, src, srcOffset, doubleCount, swap);
     }
 
     public final void pokeFloatArray(int offset, float[] src, int srcOffset, int floatCount, boolean swap) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintFloatArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyFloatArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeFloatArray(address + offset, src, srcOffset, floatCount, swap);
     }
 
     public final void pokeIntArray(int offset, int[] src, int srcOffset, int intCount, boolean swap) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintIntArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyIntArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeIntArray(address + offset, src, srcOffset, intCount, swap);
     }
 
     public final void pokeLongArray(int offset, long[] src, int srcOffset, int longCount, boolean swap) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintLongArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyLongArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeLongArray(address + offset, src, srcOffset, longCount, swap);
     }
 
     public final void pokeShortArray(int offset, short[] src, int srcOffset, int shortCount, boolean swap) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintShortArray(src));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyShortArray(src));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeShortArray(address + offset, src, srcOffset, shortCount, swap);
     }
 
     public final byte peekByte(int offset) {
-// begin WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
 //        return Memory.peekByte(address + offset);
         byte val = Memory.peekByte(address + offset);
-        return Taint.addTaintByte(val, taint);
-// end WITH_TAINT_TRACKING
+        return PolicyManagementModule.addPolicyByte(val, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekByteArray(int offset, byte[] dst, int dstOffset, int byteCount) {
         Memory.peekByteArray(address + offset, dst, dstOffset, byteCount);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintByteArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyByteArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekCharArray(int offset, char[] dst, int dstOffset, int charCount, boolean swap) {
         Memory.peekCharArray(address + offset, dst, dstOffset, charCount, swap);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintCharArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyCharArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekDoubleArray(int offset, double[] dst, int dstOffset, int doubleCount, boolean swap) {
         Memory.peekDoubleArray(address + offset, dst, dstOffset, doubleCount, swap);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintDoubleArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyDoubleArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekFloatArray(int offset, float[] dst, int dstOffset, int floatCount, boolean swap) {
         Memory.peekFloatArray(address + offset, dst, dstOffset, floatCount, swap);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintFloatArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyFloatArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekIntArray(int offset, int[] dst, int dstOffset, int intCount, boolean swap) {
         Memory.peekIntArray(address + offset, dst, dstOffset, intCount, swap);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintIntArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyIntArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekLongArray(int offset, long[] dst, int dstOffset, int longCount, boolean swap) {
         Memory.peekLongArray(address + offset, dst, dstOffset, longCount, swap);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintLongArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyLongArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void peekShortArray(int offset, short[] dst, int dstOffset, int shortCount, boolean swap) {
         Memory.peekShortArray(address + offset, dst, dstOffset, shortCount, swap);
-// begin WITH_TAINT_TRACKING
-        Taint.addTaintShortArray(dst, taint);
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        PolicyManagementModule.addPolicyShortArray(dst, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void pokeShort(int offset, short value, ByteOrder order) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintShort(value));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyShort(value));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeShort(address + offset, value, order.needsSwap);
     }
 
     public final short peekShort(int offset, ByteOrder order) {
-// begin WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
 //        return Memory.peekShort(address + offset, order.needsSwap);
         short val = Memory.peekShort(address + offset, order.needsSwap);
-        return Taint.addTaintShort(val, taint);
-// end WITH_TAINT_TRACKING
+        return PolicyManagementModule.addPolicyShort(val, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void pokeInt(int offset, int value, ByteOrder order) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintInt(value));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyInt(value));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeInt(address + offset, value, order.needsSwap);
     }
 
     public final int peekInt(int offset, ByteOrder order) {
-// begin WITH_TAINT_TRACKING
-//        return Memory.peekInt(address + offset, order.needsSwap);
+// begin WITH_SAPPHIRE_AGATE
+//        return Memory.peekShort(address + offset, order.needsSwap);
         int val = Memory.peekInt(address + offset, order.needsSwap);
-        return Taint.addTaintInt(val, taint);
-// end WITH_TAINT_TRACKING
+        return PolicyManagementModule.addPolicyInt(val, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final void pokeLong(int offset, long value, ByteOrder order) {
-// begin WITH_TAINT_TRACKING
-        addTaint(Taint.getTaintLong(value));
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+        addPolicy(PolicyManagementModule.getPolicyLong(value));
+// end WITH_SAPPHIRE_AGATE
         Memory.pokeLong(address + offset, value, order.needsSwap);
     }
 
     public final long peekLong(int offset, ByteOrder order) {
-// begin WITH_TAINT_TRACKING
-//        return Memory.peekLong(address + offset, order.needsSwap);
+// begin WITH_SAPPHIRE_AGATE
+//        return Memory.peekShort(address + offset, order.needsSwap);
         long val = Memory.peekLong(address + offset, order.needsSwap);
-        return Taint.addTaintLong(val, taint);
-// end WITH_TAINT_TRACKING
+        return PolicyManagementModule.addPolicyLong(val, p.getPolicy());
+// end WITH_SAPPHIRE_AGATE
     }
 
     public final long toLong() {
@@ -334,9 +334,14 @@ class MemoryBlock {
         return size;
     }
 
-// begin WITH_TAINT_TRACKING
-    public int getTaint() {
-        return taint;
+// begin WITH_SAPPHIRE_AGATE
+    public void addPolicy(int tag) {
+        int newTag = PolicyManagementModule.mergePolicies(getPolicy(), tag);
+        p.addPolicy(newTag);
     }
-// end WITH_TAINT_TRACKING
+
+    public int getPolicy() {
+        return p.getPolicy();
+    }
+// end WITH_SAPPHIRE_AGATE
 }

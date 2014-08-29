@@ -16,6 +16,9 @@
  */
 
 package java.nio;
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
 
 /**
  * IntArrayBuffer implements int[]-based IntBuffers.
@@ -155,4 +158,13 @@ final class IntArrayBuffer extends IntBuffer {
     position += intCount;
     return this;
   }
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyIntArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyIntArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 }

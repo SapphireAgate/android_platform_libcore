@@ -29,9 +29,9 @@ import java.util.Formatter;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import libcore.util.EmptyArray;
-// begin WITH_TAINT_TRACKING
-import dalvik.system.Taint;
-// end WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
 
 /**
  * An immutable sequence of characters/code units ({@code char}s). A
@@ -576,16 +576,16 @@ outer:
      * @throws IndexOutOfBoundsException
      *             if {@code index < 0} or {@code index >= length()}.
      */
-// begin WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
     //public native char charAt(int index);
     public native char charAt_intrinsic(int index);
-    
+
     public char charAt(int index) {
-		int stringTaint = Taint.getTaintString(this);
-		int indTaint = Taint.getTaintInt(index);
-        return Taint.addTaintChar(charAt_intrinsic(index), dalvik.agate.PolicyManagementModule.mergePolicies(stringTaint,indTaint));
+        int stringPolicy = PolicyManagementModule.getPolicyString(this);
+        int intPolicy = PolicyManagementModule.getPolicyInt(index);
+        return PolicyManagementModule.addPolicyChar(charAt_intrinsic(index), PolicyManagementModule.mergePolicies(stringPolicy, intPolicy));
     }
-// end WITH_TAINT_TRACKING
+// end WITH_SAPPHIRE_AGATE
 
     private StringIndexOutOfBoundsException indexAndLength(int index) {
         throw new StringIndexOutOfBoundsException(this, index);
@@ -1658,11 +1658,13 @@ outer:
             s = new String(0, 1, new char[] { value });
         }
         s.hashCode = value;
-// begin WITH_TAINT_TRACKING
-        if (Taint.getTaintChar(value) != 0)
-            System.out.println("AgateLog: [String.java, valueOf] add tag " + Taint.getTaintChar(value) + " on string");
-        Taint.addTaintString(s,Taint.getTaintChar(value));
-// end WITH_TAINT_TRACKING
+        // TODO: Check why it doesn't propagate it.
+// begin WITH_SAPPHIRE_AGATE
+        if (PolicyManagementModule.getPolicyChar(value) != 0) {
+            System.out.println("AgateLog: [String.java, valueOf] Add policy 0x" + Integer.toHexString(PolicyManagementModule.getPolicyChar(value)) + " on string");
+            PolicyManagementModule.addPolicyString(s, PolicyManagementModule.getPolicyChar(value));
+        }
+// end WITH_SAPPHIRE_AGATE
         return s;
     }
 
@@ -1733,13 +1735,14 @@ outer:
      * @return the boolean converted to a string.
      */
     public static String valueOf(boolean value) {
-// begin WITH_TAINT_TRACKING
+// begin WITH_SAPPHIRE_AGATE
         String ret = value ? "true" : "false";
-        if (Taint.getTaintBoolean(value) != 0)
-            System.out.println("AgateLog: [String.java, valueOf] add tag " + Taint.getTaintBoolean(value) + " on string");
-        Taint.addTaintString(ret, Taint.getTaintBoolean(value));
+        if (PolicyManagementModule.getPolicyBoolean(value) != 0) {
+            System.out.println("AgateLog: [String.java, valueOf] Add policy 0x" + Integer.toHexString(PolicyManagementModule.getPolicyBoolean(value)) + " on string");
+            PolicyManagementModule.addPolicyString(ret, PolicyManagementModule.getPolicyBoolean(value));
+        }
         return ret;
-// end WITH_TAINT_TRACKING
+// end WITH_SAPPHIRE_AGATE
     }
 
     /**

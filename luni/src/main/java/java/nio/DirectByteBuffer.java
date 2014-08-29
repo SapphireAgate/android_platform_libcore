@@ -477,4 +477,14 @@ class DirectByteBuffer extends MappedByteBuffer {
     this.block.pokeShort(offset + index, value, order);
     return this;
   }
+
+// start WITH_SAPPHIRE_AGATE
+    public void addPolicy(int tag) {
+      this.block.addPolicy(tag);
+    }
+
+    public int getPolicy() {
+      return this.block.getPolicy();
+    }
+// end WITH_SAPPHIRE_AGATE
 }

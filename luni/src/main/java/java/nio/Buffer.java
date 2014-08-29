@@ -402,6 +402,11 @@ public abstract class Buffer {
         return this;
     }
 
+// begin WITH_SAPPHIRE_AGATE
+    public abstract void addPolicy(int tag);
+    public abstract int getPolicy();
+// end WITH_SAPPHIRE_AGATE
+
     /**
      * Returns a string describing this buffer.
      */

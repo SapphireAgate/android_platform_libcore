@@ -753,4 +753,8 @@ public abstract class CharBuffer extends Buffer implements
         }
         return remaining;
     }
+// begin WITH_SAPPHIRE_AGATE
+    public void addPolicy(int tag) {}
+    public int getPolicy() {return 0;}
+// end WITH_SAPPHIRE_AGATE
 }

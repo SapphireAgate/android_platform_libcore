@@ -176,4 +176,13 @@ final class ByteBufferAsIntBuffer extends IntBuffer {
         return result;
     }
 
+// start WITH_SAPPHIRE_AGATE
+    public void addPolicy(int tag) {
+        byteBuffer.addPolicy(tag);
+    }
+  
+    public int getPolicy() {
+        return byteBuffer.getPolicy();
+    }
+// end WITH_SAPPHIRE_AGATE
 }

@@ -16,6 +16,9 @@
  */
 
 package java.nio;
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
 
 /**
  * ShortArrayBuffer implements short[]-based ShortBuffers.
@@ -155,4 +158,13 @@ final class ShortArrayBuffer extends ShortBuffer {
     position += shortCount;
     return this;
   }
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyShortArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyShortArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 }

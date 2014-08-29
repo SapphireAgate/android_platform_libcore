@@ -16,6 +16,9 @@
  */
 
 package java.nio;
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
 
 /**
  * FloatArrayBuffer implements float[]-based FloatBuffers.
@@ -156,4 +159,13 @@ final class FloatArrayBuffer extends FloatBuffer {
     position += floatCount;
     return this;
   }
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyFloatArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyFloatArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 }

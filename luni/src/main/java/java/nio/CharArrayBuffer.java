@@ -17,6 +17,10 @@
 
 package java.nio;
 
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
+
 /**
  * CharArrayBuffer implements char[]-based CharBuffers.
  */
@@ -167,4 +171,14 @@ final class CharArrayBuffer extends CharBuffer {
   @Override public final String toString() {
     return String.copyValueOf(backingArray, arrayOffset + position, remaining());
   }
+
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyCharArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyCharArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 }

@@ -16,6 +16,9 @@
  */
 
 package java.nio;
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
 
 /**
  * DoubleArrayBuffer implements double[]-based DoubleBuffers.
@@ -155,4 +158,14 @@ final class DoubleArrayBuffer extends DoubleBuffer {
     position += doubleCount;
     return this;
   }
+
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyDoubleArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyDoubleArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 }

@@ -16,6 +16,9 @@
  */
 
 package java.nio;
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
 
 /**
  * LongArrayBuffer implements long[]-based LongBuffers.
@@ -155,5 +158,14 @@ final class LongArrayBuffer extends LongBuffer {
     position += longCount;
     return this;
   }
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyLongArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyLongArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 
 }

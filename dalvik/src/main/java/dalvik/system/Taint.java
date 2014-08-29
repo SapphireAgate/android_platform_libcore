@@ -128,7 +128,7 @@ public final class Taint {
      */
     public static void addTaintDirectByteBuffer(ByteBuffer dByteBuffer, int tag) {
         if (dByteBuffer.isDirect()) {
-            dByteBuffer.addDirectByteBufferTaint(tag);
+            //dByteBuffer.addDirectByteBufferTaint(tag);
         }
     }
 
@@ -331,11 +331,11 @@ public final class Taint {
      * @return the taint tag
      */
     public static int getTaintDirectByteBuffer(ByteBuffer dByteBuffer) {
-        if (dByteBuffer.isDirect()) {
-            return dByteBuffer.getDirectByteBufferTaint();
-        } else {
+        //if (dByteBuffer.isDirect()) {
+            //return dByteBuffer.getDirectByteBufferTaint();
+        //} else {
             return -1;
-        }
+        //}
     }
 
     /**

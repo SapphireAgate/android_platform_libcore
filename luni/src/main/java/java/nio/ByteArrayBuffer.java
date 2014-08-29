@@ -20,6 +20,11 @@ package java.nio;
 import libcore.io.SizeOf;
 import libcore.io.Memory;
 
+// begin WITH_SAPPHIRE_AGATE
+import dalvik.agate.PolicyManagementModule;
+// end WITH_SAPPHIRE_AGATE
+
+
 /**
  * ByteArrayBuffer implements byte[]-backed ByteBuffers.
  */
@@ -432,4 +437,14 @@ final class ByteArrayBuffer extends ByteBuffer {
   @Override public final ShortBuffer asShortBuffer() {
     return ByteBufferAsShortBuffer.asShortBuffer(this);
   }
+
+// start WITH_SAPPHIRE_AGATE
+  public void addPolicy(int tag) {
+    PolicyManagementModule.addPolicyByteArray(backingArray, tag);
+  }
+  
+  public int getPolicy() {
+    return PolicyManagementModule.getPolicyByteArray(backingArray);
+  }
+// end WITH_SAPPHIRE_AGATE
 }
