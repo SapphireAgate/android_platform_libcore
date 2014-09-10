@@ -90,7 +90,7 @@ public abstract class ServerConnection
             throws IOException {
         this.s = s;
         this.mgr = mgr;
-        this.s.setTcpNoDelay(true);
+        //this.s.setTcpNoDelay(true);
         ep = new Endpoint(s.getInetAddress().getHostAddress(),
                           s.getPort(),
                           mgr.getEndpoint().getClientSocketFactory(),
@@ -308,7 +308,7 @@ public abstract class ServerConnection
     public void releaseOutputStream() throws IOException {
     	// Irene: Added this here and removed the other flush operations
     	// to fix a bug in RMI
-    	out.flush();
+    	//out.flush();
     }
 
     /**

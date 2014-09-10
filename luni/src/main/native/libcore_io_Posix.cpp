@@ -19,6 +19,7 @@
 #include "AsynchronousSocketCloseMonitor.h"
 #include "JNIHelp.h"
 #include "AgateJni.h"
+#include "AgateUtil.h"
 #include "JniConstants.h"
 #include "JniException.h"
 #include "NetworkUtilities.h"
@@ -58,30 +59,6 @@
 #define TO_JAVA_STRING(NAME, EXP) \
         jstring NAME = env->NewStringUTF(EXP); \
         if (NAME == NULL) return NULL;
-
-// begin WITH_SAPPHIRE_AGATE
-#define CERT_SIZE sizeof(int)
-
-static char* _int_to_byte_array(char* dest, int value) {
-    for (unsigned int i = 0; i < sizeof(int); i++) {
-        *dest++ = (char)((value >> ((sizeof(int) - i - 1) * 8)) & 0xff);
-    }
-    return dest;
-}
-
-static int _int_from_byte_array(char* bytes) {
-    int value = 0;
-    for (unsigned int i = 0; i < sizeof(int); i++) {
-        value = value << 8;
-        value |= bytes[i] & 0xff;
-    }
-    return value;
-}
-
-static char* _add_int(char* dest, int val) {
-    return _int_to_byte_array(dest, val);
-}
-// end WITH_SAPPHIRE_AGATE
 
 struct addrinfo_deleter {
     void operator()(addrinfo* p) const {
@@ -447,7 +424,7 @@ static int _send_certificate(JNIEnv* env, jobject fd, sockaddr* peer, socklen_t 
     char* s = (char*)malloc(p_size + sizeof(int));
     memcpy(s, p, p_size);
     free(p);
-    _add_int(s + p_size, 0);
+    _agate_util_add_int(s + p_size, 0);
 
     /* Send certificate */
     jint r = p_size + sizeof(int);
@@ -1238,16 +1215,21 @@ static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jin
     jint r = sizeof(int);
     jint res;
 
+    ALOGW("AgateLog: [Posix_recvfromBytesPolicy] Receiving policy");
     // get the policy size (in bytes)
     while (r > 0) {
         res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer + sizeof(int) - r, r, flags, from, fromLength);
         if (res == -1) {
             ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Failure getting the policy size: %d", errno);
-            return -2;
+            return -1;
+        } else if (res == 0) {
+            if (r < (jint)sizeof(int))
+                ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Received EOF while receiving part of the size of the policy.");
+            return 0;
         }
         r -= res;
     }
-    p_length = _int_from_byte_array(buffer);
+    p_length = _agate_util_int_from_byte_array(buffer);
 
     // get the policy
     int p;
@@ -1263,7 +1245,11 @@ static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jin
             if (res == -1) {
                 ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Failure receiving the policy: %d", errno);
                 free(policy);
-                return -2;
+                return -1;
+            } else if (res == 0) {
+                if (r < p_length)
+                    ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Received EOF while receiving part of the policy.");
+                return 0;
             }
             r -= res;
         }
@@ -1279,12 +1265,16 @@ static jlong Posix_recvfromBytesPolicy(JNIEnv* env, jobject, jobject javaFd, jin
         res = NET_FAILURE_RETRY(env, ssize_t, recvfrom, javaFd, buffer + sizeof(int) - r, r, flags, from, fromLength);
         if (res == -1) {
             ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Failure receiving bytes count: %d", errno);
-            return -2;
+            return -1;
+        } else if (res == 0) {
+            if (r < (jint)sizeof(int))
+                ALOGE("AgateLog: [Posix_recvfromBytesPolicy] Received EOF while receiving part of the number of bytes in the message.");
+            return 0;
         }
         r -= res;
     }
 
-    byteCount = _int_from_byte_array(buffer);
+    byteCount = _agate_util_int_from_byte_array(buffer);
 
     //ALOGW("AgateLog: [Posix_recvfromBytesPolicy] Received bytes count: %d", byteCount);
 
@@ -1352,7 +1342,7 @@ static jint Posix_sendtoBytesImpl(JNIEnv* env, jobject, jobject javaFd, jobject 
     char* s = (char*)malloc(p_size + sizeof(int) + byteCount);
 
     memcpy(s, p, p_size);
-    _add_int(s + p_size, byteCount);
+    _agate_util_add_int(s + p_size, byteCount);
     memcpy(s + p_size + sizeof(int), bytes.get() + byteOffset, byteCount);
     free(p);
 

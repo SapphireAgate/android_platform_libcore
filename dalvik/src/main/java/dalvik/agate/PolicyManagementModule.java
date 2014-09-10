@@ -8,6 +8,14 @@ import java.nio.ByteBuffer;
  * 
  */
 public final class PolicyManagementModule {
+   /**
+     * Prints a policy.
+     *
+     * @param tag
+     *	    the label of the source data
+     *
+     */
+    native public static void printPolicy(int tag);
 
    /**
      * Checks if information can flow from a label to another.
@@ -47,13 +55,26 @@ public final class PolicyManagementModule {
      *
      * @param str
      *	    the target string
-     * @param readers
-     *	    set of readers
-     * @param writers
-     *	    set of writers
+     * @param user_readers
+     *	    set of user readers
+     * @param group_readers
+     *	    set of group readers
      *
      */
-    native public static void addPolicyString(String str, int[] readers, int[] writers);
+    native public static void addPolicyString(String str, int[] user_readers, int[] group_readers);
+   
+   /**
+     * Updates the target String's policy tag.
+     *
+     * @param str
+     *	    the target string
+     * @param user_readers
+     *	    set of user readers
+     * @param group_readers
+     *	    set of group readers
+     *
+     */
+    native public static void addPolicyString(String str, String[] user_readers, String[] group_readers);
 
    /**
      * Updates the target String's policy tag.
@@ -71,12 +92,12 @@ public final class PolicyManagementModule {
      *
      * @param array
      *	    the target object array
-     * @param readers
-     *	    set of readers
-     * @param writers
-     *	    set of writers
+     * @param user_readers
+     *	    set of user readers
+     * @param group_readers
+     *	    set of group readers
      */
-    native public static void addPolicyObjectArray(Object[] array, int[] readers, int[] writers);
+    native public static void addPolicyObjectArray(Object[] array, int[] user_readers, int[] group_readers);
 
    /**
      * Updates the target Object array's policy tag.
@@ -93,12 +114,12 @@ public final class PolicyManagementModule {
      *
      * @param array
      *	    the target object array
-     * @param readers
+     * @param user_readers
      *	    set of readers
-     * @param writers
-     *	    set of writers
+     * @param group_readers
+     *	    set of group readers
      */
-    native public static void addPolicyBooleanArray(boolean[] array, int[] readers, int[] writers);
+    native public static void addPolicyBooleanArray(boolean[] array, int[] user_readers, int[] group_readers);
 
    /**
      * Updates the target boolean array's policy tag.
@@ -115,12 +136,12 @@ public final class PolicyManagementModule {
      *
      * @param array
      *	    the target object array
-     * @param readers
-     *	    set of readers
-     * @param writers
-     *	    set of writers
+     * @param user_readers
+     *	    set of user readers
+     * @param group_readers
+     *	    set of group readers
      */
-    native public static void addPolicyCharArray(char[] array, int[] readers, int[] writers);
+    native public static void addPolicyCharArray(char[] array, int[] user_readers, int[] group_readers);
 
    /**
      * Updates the target char array's policy.
@@ -137,12 +158,24 @@ public final class PolicyManagementModule {
      *
      * @param array
      *	    the target object array
-     * @param readers
-     *	    set of readers
-     * @param writers
-     *	    set of writers
+     * @param user_readers
+     *	    set of user readers
+     * @param group_readers
+     *	    set of group readers
      */
-    native public static void addPolicyByteArray(byte[] array, int[] readers, int[] writers);
+    native public static void addPolicyByteArray(byte[] array, int[] user_readers, int[] group_readers);
+   
+   /**
+     * Updates the target byte array's policy.
+     *
+     * @param array
+     *	    the target object array
+     * @param user_readers
+     *	    set of user readers
+     * @param group_readers
+     *	    set of group readers
+     */
+    native public static void addPolicyByteArray(byte[] array, String[] user_readers, String[] group_readers);
 
    /**
      * Updates the target byte array's policy.

@@ -376,9 +376,9 @@ public final class Posix implements Os {
         int fd_policy = PolicyManagementModule.getPolicySocket(fd.getDescriptor());
 
         if (PolicyManagementModule.canFlow(taint, fd_policy) == false) {
-            Taint.log("AgateLog: Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +
+            System.out.println("AgateLog: [sendToBytesImpl] Cannot send over network;  from label = 0x" + Integer.toHexString(taint) +
                                                   " to label = 0x" + Integer.toHexString(fd_policy));
-            throw new SocketException("AgateLog: Illegal data flow");
+            throw new SocketException("AgateException: Illegal data flow");
         }
         return sendtoBytesImpl(fd, buffer, byteOffset, byteCount, flags, inetAddress, port, taint);
     }

@@ -19,7 +19,11 @@ public final class AgatePolicy {
         PolicyManagementModule.addPolicyByteArray(this.tag, t);
     }
 
-    public void addPolicy(int[] readers, int[] writers) {
-        PolicyManagementModule.addPolicyByteArray(this.tag, readers, writers);
+    public void addPolicy(String[] user_readers, String[] group_readers) {
+        PolicyManagementModule.addPolicyByteArray(this.tag, user_readers, group_readers);
+    }
+
+    public void addPolicy(int[] user_readers, int[] group_readers) {
+        PolicyManagementModule.addPolicyByteArray(this.tag, user_readers, group_readers);
     }
 }

@@ -8,6 +8,7 @@ package dalvik.agate;
 public class UserManagementModule {
 
     native public static String getUserName();
+    native public static int getUserID();
 
     //return -1 on failure, 0 on success
     native public static int login(String user, String password);

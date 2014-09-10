@@ -432,6 +432,7 @@ public class UnicastServerRef extends UnicastRef implements ServerRef {
         // locally call the method
         try {
             toReturn = m.invoke(ref.get(), params);
+            System.out.println("RMI invoked call" + ref.get() +"; toReturn = " + toReturn);
         } catch (InvocationTargetException ite) {
             toThrow = prepareException(m.toString(),
                     ((InvocationTargetException) ite).getTargetException());
@@ -451,8 +452,9 @@ public class UnicastServerRef extends UnicastRef implements ServerRef {
             } else if (m.getReturnType() != Void.TYPE) {
                 oout.writeObject(null);
             }
-            //oout.flush();
+            oout.flush();
         } catch (Error er) {
+            System.out.println("RMI error; invalid flow");
             // rmi.67=Error occurred while marshalling return value
             throw new ServerError(Messages.getString("rmi.67"), er); //$NON-NLS-1$
         }
